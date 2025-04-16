@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -13,12 +12,14 @@ import (
 	"strconv"
 )
 
+// PartialProof contains the results of compiling and setting up a circuit.
 type PartialProof struct {
 	pk groth16.ProvingKey
 	vk groth16.VerifyingKey
 	cs constraint.ConstraintSystem
 }
 
+// cachedProofs means that we do not need to recompile the same Circuit repeatedly.
 var cachedProofs = make(map[int]PartialProof)
 
 func generateProof(elements ProofElements) CompletedProof {
@@ -66,7 +67,7 @@ func generateProof(elements ProofElements) CompletedProof {
 	if err != nil {
 		panic(err)
 	}
-	proof, err := groth16.Prove(cachedProof.cs, cachedProof.pk, witness, backend.WithIcicleAcceleration())
+	proof, err := groth16.Prove(cachedProof.cs, cachedProof.pk, witness)
 	if err != nil {
 		panic(err)
 	}
@@ -102,6 +103,10 @@ func generateProofs(proofElements []ProofElements) []CompletedProof {
 	return completedProofs
 }
 
+// writeProofsToFiles writes the proofs to files with the given prefix.
+// saveAssetSum should be set to true only for top level proofs, because
+// otherwise the asset sum may leak information about the balance composition of each batch
+// of 1024 accounts.
 func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool) {
 	for i, proof := range proofs {
 		if !saveAssetSum {
@@ -115,6 +120,8 @@ func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum boo
 	}
 }
 
+// generateNextLevelProofs generates the next level proofs by calling generateProof and treating the lower level
+// proofs as accounts, with MerkleRoot as UserId and AssetSum as Balance.
 func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof {
 	var nextLevelProofElements ProofElements
 	nextLevelProofElements.Accounts = make([]circuit.GoAccount, len(currentLevelProof))
@@ -123,6 +130,7 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 		if currentLevelProof[i].AssetSum == nil {
 			panic("AssetSum is nil")
 		}
+		// convert lower level proof to GoAccount struct
 		nextLevelProofElements.Accounts[i] = circuit.GoAccount{UserId: currentLevelProof[i].MerkleRoot, Balance: *currentLevelProof[i].AssetSum}
 		if !bytes.Equal(currentLevelProof[i].MerkleRootWithAssetSumHash, circuit.GoComputeMiMCHashForAccount(nextLevelProofElements.Accounts[i])) {
 			panic("Merkle root with asset sum hash does not match")

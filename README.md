@@ -25,6 +25,12 @@ Then run the binary using
 
 #### Userverify
 
+Get four proof files from BitGo by hitting the following endpoint:
+
+```
+GET /api/v2/wallet/{walletId}/balances/proofs
+```
+
 Using the proof files provided by BitGo, run the following command:
 
 ```bash
@@ -47,7 +53,7 @@ This generates proofs for accounts in the files `data_0.json...data_(i-1).json` 
 Each input data file can contain a maximum of 1024 accounts.
 
 ```bash
-bgproof prove [number of input data batches]
+./bgproof prove [number of input data batches]
 ```
 
 #### Verify
@@ -57,7 +63,7 @@ This can be useful for checking that the proofs were correctly generated. Please
 and that the number of mid and top level proofs are determined by the number of lower level proofs.
 
 ```bash
-bgproof verify [number of input lower level proofs]
+./bgproof verify [number of input lower level proofs]
 ```
 
 #### Generate
@@ -90,7 +96,9 @@ sum(total_liability) is also published
 
 ## Verifying Proofs
 
-Clients can verify the proof of liabilities in the following manner (assuming that the proof is 2 layered):
+The following method can be generalized to an arbitrary numbers of layers.
+
+Clients can verify the proof of liabilities for a 2 layered proof in the following manner:
 
 BitGo provides:
 1) A merkle path for the bottom layer
@@ -127,3 +135,6 @@ From (1), (2), (4), and (5), we can conclude that every BitGo user's balances is
 From (3), we can conclude that _t_ is at least the sum of all included BitGo users' balances.
 
 Therefore, we can conclude that _t_ is at least the sum of all BitGo user liabilities.
+
+**The actual implementation is a 3 layered proof to allow for a maximum of 1 billion accounts instead of 1 million with 2 layers. 
+Refer to `core/verify.go` to see the actual implementation.**

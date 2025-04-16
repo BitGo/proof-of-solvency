@@ -9,6 +9,10 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+// verifyProof performs 2 actions:
+// 1) It verifies that the proof is valid.
+// 2) It verifies that the account leaves hash to the merkle root.
+// It will only ever panic or return true. It will never return false.
 func verifyProof(proof CompletedProof) bool {
 	// first, verify snark
 	var publicCircuit circuit.Circuit
@@ -96,6 +100,7 @@ func verifyProofs(bottomLayerProofs []CompletedProof, midLayerProofs []Completed
 	verifyTopLayerProofMatchesAssetSum(topLayerProof)
 }
 
+// verifyInclusionInProof verifies that an account with hash accountHash is in one of the proofs provided.
 func verifyInclusionInProof(accountHash circuit.Hash, bottomLayerProofs []CompletedProof) {
 	for _, proof := range bottomLayerProofs {
 		for _, leaf := range proof.AccountLeaves {
@@ -107,17 +112,13 @@ func verifyInclusionInProof(accountHash circuit.Hash, bottomLayerProofs []Comple
 	panic("account not found in any proof")
 }
 
-func Verify(batchCount int, account circuit.GoAccount) {
-	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
-	// the number of mid level proofs is ceil(batchCount / 1024)
-	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+1023)/1024, "out/public/test_mid_level_proof_")
-	topLevelProof := ReadDataFromFiles[CompletedProof](1, "out/public/test_top_level_proof_")[0]
-	verifyProofs(bottomLevelProofs, midLevelProofs, topLevelProof)
-
-	accountHash := circuit.GoComputeMiMCHashForAccount(account)
-	verifyInclusionInProof(accountHash, bottomLevelProofs)
-}
-
+// VerifyProofPath is the flagship verification method.
+// VerifyProofPath verifies that the account hash is included in the bottom layer proof's MerkleRoot,
+// that the account balance is included in the *secret* bottomLayerProof.AssetSum,
+// that the bottom layer proof MerkleTree and *secret* AssetSum hash to bottomLayerProof.MerkleRootWithAssetSumHash,
+// that the bottom layer proof's MerkleRootWithAssetSumHash is included in the mid layer proof's MerkleRoot,
+// and repeat the earlier steps for the mid and top layer proofs.
+// It also verifies that the top layer proof's MerkleRootWithAssetSumHash matches the MerkleRoot and published AssetSum.
 func VerifyProofPath(accountHash circuit.Hash, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
 	if !verifyProof(bottomLayerProof) {
 		panic("bottom layer proof verification failed")
@@ -133,4 +134,18 @@ func VerifyProofPath(accountHash circuit.Hash, bottomLayerProof CompletedProof, 
 	verifyInclusionInProof(midLayerProof.MerkleRootWithAssetSumHash, []CompletedProof{topLayerProof})
 
 	verifyTopLayerProofMatchesAssetSum(topLayerProof)
+}
+
+// Verify should primarily be used to verify the proofs after running prover..
+// Verify verifies that account is included in one of the bottom level proofs, and that every proof is valid and leads
+// to a higher level proof. Verify uses hardcoded file names to read the proofs from disk.
+func Verify(batchCount int, account circuit.GoAccount) {
+	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
+	// the number of mid level proofs is ceil(batchCount / 1024)
+	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+1023)/1024, "out/public/test_mid_level_proof_")
+	topLevelProof := ReadDataFromFiles[CompletedProof](1, "out/public/test_top_level_proof_")[0]
+	verifyProofs(bottomLevelProofs, midLevelProofs, topLevelProof)
+
+	accountHash := circuit.GoComputeMiMCHashForAccount(account)
+	verifyInclusionInProof(accountHash, bottomLevelProofs)
 }

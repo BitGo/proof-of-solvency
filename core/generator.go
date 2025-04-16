@@ -30,6 +30,7 @@ func writeTestDataToFile(batchCount int, countPerBatch int) {
 	}
 }
 
+// GenerateData generates test data and writes it to files for development/testing purposes.
 func GenerateData(batchCount int, countPerBatch int) {
 	writeTestDataToFile(batchCount, countPerBatch)
 }
