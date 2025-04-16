@@ -6,18 +6,40 @@ import (
 	"math/big"
 )
 
+// ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
+// GoBalance represents the balance of an account. It can be converted to Balance for use in the circuit
+// through ConvertGoBalanceToBalance.
 type GoBalance struct {
 	Bitcoin  big.Int
 	Ethereum big.Int
 }
 
+// GoAccount represents an account. It can be converted to Account for use in the circuit
+// through ConvertGoAccountToAccount.
 type GoAccount struct {
 	UserId  []byte
 	Balance GoBalance
 }
 
+// padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
+func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
+	paddedValue = make([]byte, ModBytes-len(value))
+	// This will never be used in the circuit because it will be greater than 64 bytes and
+	// will thus fail rangechecking constraints.
+	// It is implemented for convenience in testing. We should consider removing this entirely.
+	if isNegative {
+		for i := range paddedValue {
+			paddedValue[i] = 0xFF
+		}
+		paddedValue[0] = 0x0F // this is 252 bits, an imperfect sign extension
+	}
+	paddedValue = append(paddedValue, value...)
+	return paddedValue
+}
+
+// goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	value = make([]byte, 0)
 	value = append(value, padToModBytes(balance.Bitcoin.Bytes(), balance.Bitcoin.Sign() == -1)...)
@@ -26,19 +48,8 @@ func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	return value
 }
 
-func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
-	paddedValue = make([]byte, ModBytes-len(value))
-	// sign extension
-	if isNegative {
-		for i := range paddedValue {
-			paddedValue[i] = 0xFF
-		}
-		paddedValue[0] = 0x0F // this is 254 bits not 256
-	}
-	paddedValue = append(paddedValue, value...)
-	return paddedValue
-}
-
+// GoComputeMiMCHashForAccount computes the MiMC hash of the account's balance and user ID
+// and returns a consistent result with hashAccount in the circuit.
 func GoComputeMiMCHashForAccount(account GoAccount) []byte {
 	hasher := mimcCrypto.NewMiMC()
 	_, err := hasher.Write(goConvertBalanceToBytes(account.Balance))
@@ -55,6 +66,8 @@ func GoComputeMiMCHashForAccount(account GoAccount) []byte {
 	return hasher.Sum(nil)
 }
 
+// GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
+// It returns a consistent result with computeMerkleRootFromAccounts in the circuit.
 func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash []byte) {
 	hashes := make([]Hash, len(accounts))
 	for i, account := range accounts {
@@ -65,6 +78,7 @@ func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash []byte) {
 
 type Hash = []byte
 
+// GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes.
 func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 	if len(hashes) > 1024 {
 		panic("number of hashes exceeds the maximum number of leaves in the Merkle tree")
@@ -96,6 +110,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 	return nodes[0]
 }
 
+// ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	return Balance{
 		Bitcoin:  padToModBytes(goBalance.Bitcoin.Bytes(), goBalance.Bitcoin.Sign() == -1),
@@ -103,6 +118,7 @@ func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	}
 }
 
+// ConvertGoAccountToAccount converts a GoAccount to an Account immediately before inclusion in the circuit.
 func convertGoAccountToAccount(goAccount GoAccount) Account {
 	return Account{
 		UserId:  new(big.Int).SetBytes(goAccount.UserId),
@@ -118,7 +134,8 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
-// strictly for testing
+// SumGoAccountBalancesIncludingNegatives sums the balances of a list of GoAccounts, including negative balances.
+// Since we cannot use negative balances in the circuit, this function is only used for testing purposes.
 func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
 	assetSum := GoBalance{Bitcoin: *big.NewInt(0), Ethereum: *big.NewInt(0)}
 	for _, account := range accounts {
@@ -133,6 +150,8 @@ func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
 	return assetSum
 }
 
+// SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
+// This panic is because any circuit that is passed negative balances will violate constraints.
 func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 	assetSum := GoBalance{Bitcoin: *big.NewInt(0), Ethereum: *big.NewInt(0)}
 	for _, account := range accounts {
@@ -145,6 +164,7 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 	return assetSum
 }
 
+// GenerateTestData generates test data for a given number of accounts with a seed based on the account index.
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 	for i := 0; i < count; i++ {
 		iWithSeed := (i + seed) * (seed + 1)
