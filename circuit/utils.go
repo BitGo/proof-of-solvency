@@ -66,6 +66,10 @@ func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash []byte) {
 type Hash = []byte
 
 func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
+	if len(hashes) > 1024 {
+		panic("number of hashes exceeds the maximum number of leaves in the Merkle tree")
+	}
+
 	hasher := mimcCrypto.NewMiMC()
 	nodes := make([][]byte, PowOfTwo(TreeDepth))
 	for i := 0; i < PowOfTwo(TreeDepth); i++ {
