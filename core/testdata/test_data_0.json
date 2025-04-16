@@ -1,0 +1,122 @@
+{
+  "Accounts": [
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 6111,
+        "Ethereum": 1397
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 6663,
+        "Ethereum": 1433
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 7215,
+        "Ethereum": 1469
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 7767,
+        "Ethereum": 1505
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 8319,
+        "Ethereum": 1541
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 8871,
+        "Ethereum": 1577
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 9423,
+        "Ethereum": 1613
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 9975,
+        "Ethereum": 1649
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 10527,
+        "Ethereum": 1685
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 11079,
+        "Ethereum": 1721
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 11631,
+        "Ethereum": 1757
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 12183,
+        "Ethereum": 1793
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 12735,
+        "Ethereum": 1829
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 13287,
+        "Ethereum": 1865
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 13839,
+        "Ethereum": 1901
+      }
+    },
+    {
+      "UserId": "Zm9v",
+      "Balance": {
+        "Bitcoin": 14391,
+        "Ethereum": 1937
+      }
+    }
+  ],
+  "AssetSum": {
+    "Bitcoin": 164016,
+    "Ethereum": 26672
+  },
+  "MerkleRoot": "CaRvA9yBrfd278t+Zgq8c8L9STdV6UGRVjrFB99vNqo=",
+  "MerkleRootWithAssetSumHash": "EnWTUD2F1Vz0bYMLufcwnec3JBw2bibIHdpm6pgiGrg="
+}
