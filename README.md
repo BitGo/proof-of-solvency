@@ -25,6 +25,12 @@ Then run the binary using
 
 #### Userverify
 
+Get four proof files from BitGo by hitting the following endpoint:
+
+```
+GET /api/v2/wallet/{walletId}/balances/proofs
+```
+
 Using the proof files provided by BitGo, run the following command:
 
 ```bash
@@ -47,7 +53,7 @@ This generates proofs for accounts in the files `data_0.json...data_(i-1).json` 
 Each input data file can contain a maximum of 1024 accounts.
 
 ```bash
-bgproof prove [number of input data batches]
+./bgproof prove [number of input data batches]
 ```
 
 #### Verify
@@ -57,7 +63,7 @@ This can be useful for checking that the proofs were correctly generated. Please
 and that the number of mid and top level proofs are determined by the number of lower level proofs.
 
 ```bash
-bgproof verify [number of input lower level proofs]
+./bgproof verify [number of input lower level proofs]
 ```
 
 #### Generate
