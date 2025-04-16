@@ -56,35 +56,15 @@ func GoComputeMiMCHashForAccount(account GoAccount) []byte {
 }
 
 func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash []byte) {
-	hasher := mimcCrypto.NewMiMC()
-	nodes := make([][]byte, PowOfTwo(TreeDepth))
-	for i := 0; i < PowOfTwo(TreeDepth); i++ {
-		if i < len(accounts) {
-			nodes[i] = GoComputeMiMCHashForAccount(accounts[i])
-		} else {
-			nodes[i] = padToModBytes([]byte{}, false)
-		}
+	hashes := make([]Hash, len(accounts))
+	for i, account := range accounts {
+		hashes[i] = GoComputeMiMCHashForAccount(account)
 	}
-	for i := TreeDepth - 1; i >= 0; i-- {
-		for j := 0; j < PowOfTwo(i); j++ {
-			hasher.Reset()
-			_, err := hasher.Write(nodes[j*2])
-			if err != nil {
-				panic(err)
-			}
-			_, err = hasher.Write(nodes[j*2+1])
-			if err != nil {
-				panic(err)
-			}
-			nodes[j] = hasher.Sum(nil)
-		}
-	}
-	return nodes[0]
+	return GoComputeMerkleRootFromHashes(hashes)
 }
 
 type Hash = []byte
 
-// GoComputeMerkleRootFromHashes TODO: consolidate with GoComputeMerkleRootFromAccounts
 func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 	hasher := mimcCrypto.NewMiMC()
 	nodes := make([][]byte, PowOfTwo(TreeDepth))
