@@ -1,5 +1,7 @@
 # Proof of Solvency
 
+**THIS IS A WORK IN PROGRESS**
+
 ## Overview
 
 This is a multi-levelled proof of solvency implementation that enables O(log n) time verification of proofs. 
