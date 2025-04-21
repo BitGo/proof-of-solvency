@@ -40,8 +40,10 @@ func readJson(filePath string, data interface{}) error {
 	return decoder.Decode(data)
 }
 
+// ProofElements is an input to the prover. It contains sensitive data and should not be published.
 type ProofElements struct {
-	Accounts                   []circuit.GoAccount
+	Accounts []circuit.GoAccount
+	// AssetSum is not optional, but marshalling fails if it is not a pointer.
 	AssetSum                   *circuit.GoBalance
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
@@ -49,13 +51,15 @@ type ProofElements struct {
 
 type AccountLeaf = []byte
 
+// CompletedProof is an output of the prover. It contains the proof and public data. It can be published.
 type CompletedProof struct {
 	Proof                      string
 	VK                         string
 	AccountLeaves              []AccountLeaf
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
-	AssetSum                   *circuit.GoBalance
+	// AssetSum is optional.
+	AssetSum *circuit.GoBalance
 }
 
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string) D {
