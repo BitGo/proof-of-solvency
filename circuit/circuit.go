@@ -33,12 +33,8 @@ type Circuit struct {
 	MerkleRootWithAssetSumHash frontend.Variable `gnark:",public"`
 }
 
-func PowOfTwo(n int) (result int) {
-	result = 1
-	for i := 0; i < n; i++ {
-		result *= 2
-	}
-	return result
+func PowOfTwo(n int) int {
+	return 1 << n
 }
 
 func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
