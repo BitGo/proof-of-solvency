@@ -1,9 +1,10 @@
 package circuit
 
 import (
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"math/big"
 )
 
 // ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
@@ -26,14 +27,11 @@ type GoAccount struct {
 // padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
 func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
 	paddedValue = make([]byte, ModBytes-len(value))
-	// This will never be used in the circuit because it will be greater than 64 bytes and
-	// will thus fail rangechecking constraints.
-	// It is implemented for convenience in testing. We should consider removing this entirely.
+
+	// If the value is negative, it will fail the circuit range check (since the sign extended version
+	// will be greater than 64 bytes, which is an overflow). So we simple panic here.
 	if isNegative {
-		for i := range paddedValue {
-			paddedValue[i] = 0xFF
-		}
-		paddedValue[0] = 0x0F // this is 252 bits, an imperfect sign extension
+		panic("negative value cannot be used in the circuit")
 	}
 	paddedValue = append(paddedValue, value...)
 	return paddedValue
@@ -132,22 +130,6 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 		accounts[i] = convertGoAccountToAccount(goAccount)
 	}
 	return accounts
-}
-
-// SumGoAccountBalancesIncludingNegatives sums the balances of a list of GoAccounts, including negative balances.
-// Since we cannot use negative balances in the circuit, this function is only used for testing purposes.
-func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
-	assetSum := GoBalance{Bitcoin: *big.NewInt(0), Ethereum: *big.NewInt(0)}
-	for _, account := range accounts {
-		b := make([]byte, 0)
-		b = append(b, padToModBytes(account.Balance.Bitcoin.Bytes(), account.Balance.Bitcoin.Sign() == -1)...)
-		assetSum.Bitcoin.Add(&assetSum.Bitcoin, new(big.Int).SetBytes(b))
-
-		b = make([]byte, 0)
-		b = append(b, padToModBytes(account.Balance.Ethereum.Bytes(), account.Balance.Ethereum.Sign() == -1)...)
-		assetSum.Ethereum.Add(&assetSum.Ethereum, new(big.Int).SetBytes(b))
-	}
-	return assetSum
 }
 
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
