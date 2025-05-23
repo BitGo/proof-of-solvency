@@ -1,11 +1,12 @@
 package circuit
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/test"
-	"math/big"
-	"testing"
 )
 
 const count = 16
@@ -31,22 +32,6 @@ func TestCircuitWorks(t *testing.T) {
 	assert.ProverSucceeded(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
 
-func TestCircuitDoesNotAcceptNegativeAccounts(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	var c Circuit
-	goAccounts, _, _, _ := GenerateTestData(count, 0)
-	goAccounts[0].Balance.Bitcoin = *big.NewInt(-1)
-	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	goAssetSum := SumGoAccountBalancesIncludingNegatives(goAccounts)
-	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
-	merkleRoot := GoComputeMerkleRootFromAccounts(goAccounts)
-	c.MerkleRoot = merkleRoot
-	c.MerkleRootWithAssetSumHash = GoComputeMiMCHashForAccount(GoAccount{merkleRoot, goAssetSum})
-
-	assert.ProverFailed(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
-}
-
 func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 	assert := test.NewAssert(t)
 
@@ -58,7 +43,7 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 	}
 	goAccounts[0].Balance.Bitcoin = *new(big.Int).SetBytes(amt)
 	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	goAssetSum := SumGoAccountBalancesIncludingNegatives(goAccounts)
+	goAssetSum := SumGoAccountBalances(goAccounts)
 	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
 	merkleRoot := GoComputeMerkleRootFromAccounts(goAccounts)
 	c.MerkleRoot = merkleRoot
