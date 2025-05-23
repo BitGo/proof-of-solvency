@@ -25,7 +25,9 @@ type GoAccount struct {
 }
 
 // padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
-func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
+func padToModBytes(num big.Int) (paddedValue []byte) {
+	value := num.Bytes()
+	isNegative := num.Sign() < 0
 	paddedValue = make([]byte, ModBytes-len(value))
 
 	// If the value is negative, it will fail the circuit range check (since the sign extended version
@@ -33,6 +35,7 @@ func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
 	if isNegative {
 		panic("negative value cannot be used in the circuit")
 	}
+
 	paddedValue = append(paddedValue, value...)
 	return paddedValue
 }
@@ -40,8 +43,8 @@ func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
 // goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	value = make([]byte, 0)
-	value = append(value, padToModBytes(balance.Bitcoin.Bytes(), balance.Bitcoin.Sign() == -1)...)
-	value = append(value, padToModBytes(balance.Ethereum.Bytes(), balance.Ethereum.Sign() == -1)...)
+	value = append(value, padToModBytes(balance.Bitcoin)...)
+	value = append(value, padToModBytes(balance.Ethereum)...)
 
 	return value
 }
@@ -88,7 +91,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
-			nodes[i] = padToModBytes([]byte{}, false)
+			nodes[i] = padToModBytes(*big.NewInt(0))
 		}
 	}
 	for i := TreeDepth - 1; i >= 0; i-- {
@@ -111,8 +114,8 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	return Balance{
-		Bitcoin:  padToModBytes(goBalance.Bitcoin.Bytes(), goBalance.Bitcoin.Sign() == -1),
-		Ethereum: padToModBytes(goBalance.Ethereum.Bytes(), goBalance.Ethereum.Sign() == -1),
+		Bitcoin:  padToModBytes(goBalance.Bitcoin),
+		Ethereum: padToModBytes(goBalance.Ethereum),
 	}
 }
 
