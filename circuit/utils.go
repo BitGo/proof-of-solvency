@@ -26,8 +26,6 @@ type GoAccount struct {
 	Balance GoBalance
 }
 
-// TODO: this function is completely unncecessary, even for testing since it only breaks the overflow constraint
-// negative numbers are straight up impossible in the circuit
 // padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
 func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
 	paddedValue = make([]byte, ModBytes-len(value))
@@ -139,6 +137,8 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
+// TODO: this function is completely unncecessary, even for testing since it only breaks the overflow constraint
+// negative numbers are straight up impossible in the circuit
 // SumGoAccountBalancesIncludingNegatives sums the balances of a list of GoAccounts, including negative balances.
 // Since we cannot use negative balances in the circuit, this function is only used for testing purposes.
 func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
