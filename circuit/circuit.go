@@ -13,10 +13,15 @@ import (
 const TreeDepth = 10
 
 // Balance is an input to the circuit and is only used in this package. GoBalance is preferred elsewhere.
-type Balance struct {
-	Bitcoin  frontend.Variable
-	Ethereum frontend.Variable
-}
+// We can't make this a fixed size array (if we do, we'll need to update this everytime we add a new asset).
+// Two options (I can think of):
+//  1. Just enforce through panics.
+//  2. Add extra constraints to the circuit to ensure that the length of the balance matches the number of assets.
+//     This option would also need an index associated with each asset, making it even more inefficient.
+//
+// Currently, we use the first option - we don't really need to use the second one, unless we find that without
+// those additional constraints, there could be a security/trust issue.
+type Balance []frontend.Variable
 
 // Account is an input to the circuit and is only used in this package. GoAccount is preferred elsewhere.
 type Account struct {
@@ -43,28 +48,34 @@ func PowOfTwo(n int) (result int) {
 
 func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
 	ranger := rangecheck.New(api)
-
-	// TODO(BTC-2038): don't manually enumerate
-	// Verifies each account has value between 0 and 2^64 - 1.
-	// If we incorporate bigger accounts, we can go up to 128 bits safely.
-	ranger.Check(balances.Bitcoin, 64)
-	ranger.Check(balances.Ethereum, 64)
+	for _, balance := range balances {
+		// Verifies each account has value between 0 and 2^64 - 1.
+		// If we incorporate bigger accounts, we can go up to 128 bits safely.
+		ranger.Check(balance, 0)
+	}
 }
 
 func addBalance(api frontend.API, a, b Balance) Balance {
-	// TODO(BTC-2038): don't manually enumerate
-	return Balance{
-		Bitcoin:  api.Add(a.Bitcoin, b.Bitcoin),
-		Ethereum: api.Add(a.Ethereum, b.Ethereum),
+	// enforce all have the same length as assetsymbols
+	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
+		panic("balances must have the same length as assets")
 	}
+	summedBalance := make([]frontend.Variable, len(a))
+	for i := range a {
+		summedBalance[i] = api.Add(a[i], b[i])
+	}
+	return summedBalance
 }
 
 // hashBalance computes the MiMC hash of the balance. goConvertBalanceToBytes is the Go equivalent,
 // although it does not actually do the hashing step.
 func hashBalance(hasher mimc.MiMC, balances Balance) (hash frontend.Variable) {
+	// do we need to enforce this here?
+	if len(balances) != GetNumberOfAssets() {
+		panic("balances must have the same length as assets")
+	}
 	hasher.Reset()
-	// TODO(BTC-2038): don't manually enumerate
-	hasher.Write(balances.Bitcoin, balances.Ethereum)
+	hasher.Write(balances[:]...)
 	return hasher.Sum()
 }
 
@@ -97,9 +108,12 @@ func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts 
 }
 
 func assertBalancesAreEqual(api frontend.API, a, b Balance) {
-	// TODO(BTC-2038): don't manually enumerate
-	api.AssertIsEqual(a.Bitcoin, b.Bitcoin)
-	api.AssertIsEqual(a.Ethereum, b.Ethereum)
+	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
+		panic("balances must have the same length as assets")
+	}
+	for i := range a {
+		api.AssertIsEqual(a[i], b[i])
+	}
 }
 
 // Define defines the actual circuit.
@@ -112,7 +126,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	if len(circuit.Accounts) > PowOfTwo(TreeDepth) {
 		panic("number of accounts exceeds the maximum number of leaves in the Merkle tree")
 	}
-	var runningBalance = Balance{Bitcoin: 0, Ethereum: 0}
+	var runningBalance = make([]frontend.Variable, GetNumberOfAssets()) // Initialized to zeroes by default
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
 		panic(err)

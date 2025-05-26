@@ -12,12 +12,21 @@ import (
 // ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
+// array storing symbols for cryptocurrencies (essentially mapping indices to cryptocurrencies)
+var AssetSymbols = []string{"BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL", "AVAX", "MATIC", "TRX", "XMR", "ALGO", "VET", "FIL", "EOS", "XTZ", "THETA", "AAVE", "COMP", "SUSHI", "YFI", "BAT", "ZEC", "DASH", "NEO", "QTUM", "OMG"}
+
+// Have these getter functions incase we decide to get asset symbols from a different source in the future
+func GetNumberOfAssets() int {
+	return len(AssetSymbols)
+}
+
+func GetAssetSymbols() []string {
+	return AssetSymbols
+}
+
 // GoBalance represents the balance of an account. It can be converted to Balance for use in the circuit
 // through ConvertGoBalanceToBalance.
-type GoBalance struct {
-	Bitcoin  big.Int
-	Ethereum big.Int
-}
+type GoBalance []*big.Int
 
 // GoAccount represents an account. It can be converted to Account for use in the circuit
 // through ConvertGoAccountToAccount.
@@ -45,9 +54,10 @@ func padToModBytes(num big.Int) (paddedValue []byte) {
 // goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	value = make([]byte, 0)
-	value = append(value, padToModBytes(balance.Bitcoin)...)
-	value = append(value, padToModBytes(balance.Ethereum)...)
-
+	// TODO: do we need to check for balance size?
+	for _, asset := range balance {
+		value = append(value, padToModBytes(asset)...)
+	}
 	return value
 }
 
@@ -115,10 +125,11 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
-	return Balance{
-		Bitcoin:  padToModBytes(goBalance.Bitcoin),
-		Ethereum: padToModBytes(goBalance.Ethereum),
+	balance := make(Balance, len(goBalance)) // TODO: enforce that len(goBalance) == GetNumberOfAssets()?
+	for i, asset := range goBalance {
+		balance[i] = padToModBytes(asset)
 	}
+	return balance
 }
 
 // ConvertGoAccountToAccount converts a GoAccount to an Account immediately before inclusion in the circuit.
@@ -140,13 +151,21 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
 // This panic is because any circuit that is passed negative balances will violate constraints.
 func SumGoAccountBalances(accounts []GoAccount) GoBalance {
-	assetSum := GoBalance{Bitcoin: *big.NewInt(0), Ethereum: *big.NewInt(0)}
+	assetSum := make(GoBalance, GetNumberOfAssets())
+	for i := range assetSum {
+		assetSum[i] = big.NewInt(0)
+	}
+
 	for _, account := range accounts {
-		if account.Balance.Bitcoin.Sign() == -1 || account.Balance.Ethereum.Sign() == -1 {
-			panic("use SumGoAccountBalancesIncludingNegatives for negative balances")
+		if len(account.Balance) != GetNumberOfAssets() {
+			panic("balance must have the same length as assets")
 		}
-		assetSum.Bitcoin.Add(&assetSum.Bitcoin, &account.Balance.Bitcoin)
-		assetSum.Ethereum.Add(&assetSum.Ethereum, &account.Balance.Ethereum)
+		for i, asset := range account.Balance {
+			if asset.Sign() == -1 {
+				panic("negative asset balance found")
+			}
+			assetSum[i].Add(assetSum[i], asset)
+		}
 	}
 	return assetSum
 }
@@ -156,17 +175,20 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 	for i := 0; i < count; i++ {
 		iWithSeed := (i + seed) * (seed + 1)
-		btcCount, ethCount := int64(iWithSeed+45*iWithSeed+39), int64(iWithSeed*2+iWithSeed+1001)
 
-		// Generate random user ID (16 bytes)
-		userID := make([]byte, 16)
-		_, err := rand.Read(userID)
+		// generate random user ID (16 bytes)
+		userId := make([]byte, 16)
+		_, err := rand.Read(userId)
 		if err != nil {
-			// Fallback to deterministic ID if random generation fails
-			userID = []byte(fmt.Sprintf("user_%d_%d", i, seed))
+			// fallback to deterministic ID if random generation fails
+			userId = []byte(fmt.Sprintf("user_%d_%d", i, seed))
 		}
 
-		accounts = append(accounts, GoAccount{UserId: userID, Balance: GoBalance{Bitcoin: *big.NewInt(btcCount), Ethereum: *big.NewInt(ethCount)}})
+		balances := make(GoBalance, GetNumberOfAssets())
+		for i := range balances {
+			balances[i] = big.NewInt(int64(iWithSeed*(113%i) + i*415*iWithSeed + (i*7)%29 + 1)) // TODO: Can replace with more complex logic if needed
+		}
+		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
 	}
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
 	merkleRoot = GoComputeMerkleRootFromAccounts(accounts)
@@ -175,5 +197,13 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 }
 
 func (GoBalance *GoBalance) Equals(other GoBalance) bool {
-	return GoBalance.Bitcoin.Cmp(&other.Bitcoin) == 0 && GoBalance.Ethereum.Cmp(&other.Ethereum) == 0
+	if len(*GoBalance) != len(other) {
+		return false // TODO: should I panic instead?
+	}
+	for i := range *GoBalance {
+		if (*GoBalance)[i].Cmp(other[i]) != 0 {
+			return false
+		}
+	}
+	return true
 }

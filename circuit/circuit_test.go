@@ -41,7 +41,7 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 	for b := range amt {
 		amt[b] = 0xFF
 	}
-	goAccounts[0].Balance.Bitcoin = *new(big.Int).SetBytes(amt)
+	goAccounts[0].Balance[0] = new(big.Int).SetBytes(amt)
 	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
 	goAssetSum := SumGoAccountBalances(goAccounts)
 	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
