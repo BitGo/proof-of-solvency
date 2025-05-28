@@ -14,7 +14,10 @@ import (
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
 // array storing symbols for cryptocurrencies (essentially mapping indices to cryptocurrencies)
-var AssetSymbols = []string{"BTC", "BCH", "ADA", "ATOM", "DOGE", "ETH", "LTC", "DOT", "SOL", "XLM", "TRX", "XRP", "TON"}
+var AssetSymbols = []string{"ALGO", "ARBETH", "AVAXC", "AVAXP", "BTC", "BCH", "ADA", "CSPR", "TIA",
+	"COREUM", "ATOM", "DASH", "DOGE", "EOS", "ETH", "ETC", "HBAR", "LTC", "NEAR",
+	"OSMO", "DOT", "POLYGON", "SEI", "SOL", "STX", "XLM", "SUI", "TRX", "XRP",
+	"ZEC", "ZETA", "BLD", "BSC", "TON", "COREDAO", "BERA", "TAO", "APT", "XDC", "WEMIX"}
 
 // Have these getter functions incase we decide to get asset symbols from a different source in the future
 func GetNumberOfAssets() int {
