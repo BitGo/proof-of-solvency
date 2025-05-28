@@ -1,15 +1,16 @@
 package core
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
 	"bytes"
 	"encoding/base64"
+	"strconv"
+
+	"bitgo.com/proof_of_reserves/circuit"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"strconv"
 )
 
 // PartialProof contains the results of compiling and setting up a circuit.
@@ -40,8 +41,24 @@ func generateProof(elements ProofElements) CompletedProof {
 	proofLen := len(elements.Accounts)
 	if _, ok := cachedProofs[proofLen]; !ok {
 		var err error
+
+		// create a circuit with empty accounts and all-zero asset sum
+		emptyAccounts := make([]circuit.Account, proofLen)
+		for i := range emptyAccounts {
+			zeroBalances := make([]frontend.Variable, circuit.GetNumberOfAssets())
+			for j := range zeroBalances {
+				zeroBalances[j] = frontend.Variable(0)
+			}
+			emptyAccounts[i].Balance = zeroBalances
+		}
+		emptySum := make(circuit.Balance, circuit.GetNumberOfAssets())
+		for i := range emptySum {
+			emptySum[i] = frontend.Variable(0)
+		}
+
 		c := &circuit.Circuit{
-			Accounts: make([]circuit.Account, len(elements.Accounts)),
+			Accounts: emptyAccounts,
+			AssetSum: emptySum,
 		}
 		cachedProof := PartialProof{}
 		cachedProof.cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, c)

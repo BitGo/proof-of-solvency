@@ -1,10 +1,11 @@
 package core
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
 	"encoding/json"
 	"os"
 	"strconv"
+
+	"bitgo.com/proof_of_reserves/circuit"
 )
 
 func writeJson(filePath string, data interface{}) error {
