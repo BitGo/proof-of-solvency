@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	mathrand "math/rand"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -13,7 +14,7 @@ import (
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
 // array storing symbols for cryptocurrencies (essentially mapping indices to cryptocurrencies)
-var AssetSymbols = []string{"BTC", "ETH", "XRP", "LTC", "BCH", "ADA", "DOT", "LINK", "XLM", "DOGE", "UNI", "SOL", "AVAX", "MATIC", "TRX", "XMR", "ALGO", "VET", "FIL", "EOS", "XTZ", "THETA", "AAVE", "COMP", "SUSHI", "YFI", "BAT", "ZEC", "DASH", "NEO", "QTUM", "OMG"}
+var AssetSymbols = []string{"BTC", "BCH", "ADA", "ATOM", "DOGE", "ETH", "LTC", "DOT", "SOL", "XLM", "TRX", "XRP", "TON"}
 
 // Have these getter functions incase we decide to get asset symbols from a different source in the future
 func GetNumberOfAssets() int {
@@ -173,9 +174,12 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 // GenerateTestData generates test data for a given number of accounts with a seed based on the account index.
 // Each account gets a random user ID.
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
-	for i := 0; i < count; i++ {
-		iWithSeed := (i + seed) * (seed + 1)
 
+	// initialize random number generator with seed
+	source := mathrand.NewSource(int64(seed))
+	rng := mathrand.New(source)
+
+	for i := 0; i < count; i++ {
 		// generate random user ID (16 bytes)
 		userId := make([]byte, 16)
 		_, err := rand.Read(userId)
@@ -186,7 +190,8 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 
 		balances := make(GoBalance, GetNumberOfAssets())
 		for i := range balances {
-			balances[i] = big.NewInt(int64(iWithSeed*(113%i) + i*415*iWithSeed + (i*7)%29 + 1)) // TODO: Can replace with more complex logic if needed
+			// generate random balances between 0 and 10,500
+			balances[i] = big.NewInt(rng.Int63n(10500))
 		}
 		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
 	}
