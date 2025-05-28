@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
 
@@ -14,8 +15,23 @@ const count = 16
 var baseCircuit = initBaseCircuit(count)
 
 func initBaseCircuit(count int) *Circuit {
+	// create a circuit with empty accounts and all-zero asset sum
+	emptyAccounts := make([]Account, count)
+	for i := range emptyAccounts {
+		zeroBalances := make([]frontend.Variable, GetNumberOfAssets())
+		for j := range zeroBalances {
+			zeroBalances[j] = frontend.Variable(0)
+		}
+		emptyAccounts[i].Balance = zeroBalances
+	}
+	emptySum := make(Balance, GetNumberOfAssets())
+	for i := range emptySum {
+		emptySum[i] = frontend.Variable(0)
+	}
+
 	return &Circuit{
-		Accounts: make([]Account, count),
+		Accounts: emptyAccounts,
+		AssetSum: emptySum,
 	}
 }
 
