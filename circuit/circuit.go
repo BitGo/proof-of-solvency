@@ -51,7 +51,7 @@ func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) 
 	for _, balance := range balances {
 		// Verifies each account has value between 0 and 2^64 - 1.
 		// If we incorporate bigger accounts, we can go up to 128 bits safely.
-		ranger.Check(balance, 0)
+		ranger.Check(balance, 64)
 	}
 }
 
@@ -126,7 +126,11 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	if len(circuit.Accounts) > PowOfTwo(TreeDepth) {
 		panic("number of accounts exceeds the maximum number of leaves in the Merkle tree")
 	}
-	var runningBalance = make([]frontend.Variable, GetNumberOfAssets()) // Initialized to zeroes by default
+	var runningBalance = make([]frontend.Variable, GetNumberOfAssets())
+	for i := range runningBalance {
+		runningBalance[i] = frontend.Variable(0)
+	}
+
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
 		panic(err)
