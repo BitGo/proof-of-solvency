@@ -1,24 +1,24 @@
 package core
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
-	"github.com/consensys/gnark/test"
 	"math/big"
 	"testing"
+
+	"bitgo.com/proof_of_reserves/circuit"
+	"github.com/consensys/gnark/test"
 )
 
 func TestIntegrationComputeAccountLeavesFromAccounts(t *testing.T) {
 	assert := test.NewAssert(t)
-
+	user1Balance := make(circuit.GoBalance, 2)
+	user1Balance[0] = big.NewInt(1000000000) // Bitcoin balance
+	user1Balance[1] = big.NewInt(11111)      // Ethereum balance
+	user2Balance := make(circuit.GoBalance, 2)
+	user2Balance[0] = big.NewInt(0)     // Bitcoin balance
+	user2Balance[1] = big.NewInt(22222) // Ethereum balance
 	accounts := []circuit.GoAccount{
-		{UserId: []byte{1, 2}, Balance: circuit.GoBalance{
-			Bitcoin:  *big.NewInt(1000000000),
-			Ethereum: *big.NewInt(11111),
-		}},
-		{UserId: []byte{1, 3}, Balance: circuit.GoBalance{
-			Bitcoin:  *big.NewInt(0),
-			Ethereum: *big.NewInt(22222),
-		}},
+		{UserId: []byte{1, 2}, Balance: user1Balance},
+		{UserId: []byte{1, 3}, Balance: user2Balance},
 	}
 
 	expectedLeaves := []AccountLeaf{

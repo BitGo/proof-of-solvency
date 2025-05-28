@@ -1,10 +1,11 @@
 package core
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
-	"github.com/consensys/gnark/test"
 	"math/big"
 	"testing"
+
+	"bitgo.com/proof_of_reserves/circuit"
+	"github.com/consensys/gnark/test"
 )
 
 var proofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_proof_0.json")
@@ -86,7 +87,11 @@ func TestVerifyProofsFailsWhenTopLevelAssetSumMismatch(t *testing.T) {
 		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, incorrectProofTop)
 	}, "should panic when asset sum is nil")
 
-	incorrectProofTop.AssetSum = &circuit.GoBalance{Bitcoin: *big.NewInt(1), Ethereum: *big.NewInt(1)}
+	assetSum := make(circuit.GoBalance, circuit.GetNumberOfAssets())
+	assetSum[0] = big.NewInt(1)
+	assetSum[1] = big.NewInt(1)
+	incorrectProofTop.AssetSum = &assetSum
+
 	assert.Panics(func() {
 		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, incorrectProofTop)
 	}, "should panic when asset sum is wrong")
@@ -126,10 +131,11 @@ func TestVerifyProofPath(t *testing.T) {
 	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, CompletedProof{}) }, "should panic when proofs are incomplete")
 
 	incorrectProofTop := proofTop
-	incorrectProofTop.AssetSum = &circuit.GoBalance{
-		Bitcoin:  *big.NewInt(123),
-		Ethereum: *big.NewInt(456),
-	}
+
+	assetSum := make(circuit.GoBalance, circuit.GetNumberOfAssets())
+	assetSum[0] = big.NewInt(123)
+	assetSum[1] = big.NewInt(456)
+	incorrectProofTop.AssetSum = &assetSum
 	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, incorrectProofTop) }, "should panic when asset sum is incorrect")
 	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, altProofTop) }, "should panic when mid proof does not link to top proof")
 	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, altProofMid, proofTop) }, "should panic when bottom proof does not link to mid proof")
