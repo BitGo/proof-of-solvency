@@ -1,9 +1,12 @@
 package circuit
 
 import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
-	"math/big"
 )
 
 // ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
@@ -134,6 +137,8 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
+// TODO: this function is completely unncecessary, even for testing since it only breaks the overflow constraint
+// negative numbers are straight up impossible in the circuit
 // SumGoAccountBalancesIncludingNegatives sums the balances of a list of GoAccounts, including negative balances.
 // Since we cannot use negative balances in the circuit, this function is only used for testing purposes.
 func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
@@ -165,11 +170,21 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 }
 
 // GenerateTestData generates test data for a given number of accounts with a seed based on the account index.
+// Each account gets a random user ID.
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 	for i := 0; i < count; i++ {
 		iWithSeed := (i + seed) * (seed + 1)
 		btcCount, ethCount := int64(iWithSeed+45*iWithSeed+39), int64(iWithSeed*2+iWithSeed+1001)
-		accounts = append(accounts, GoAccount{UserId: []byte("foo"), Balance: GoBalance{Bitcoin: *big.NewInt(btcCount), Ethereum: *big.NewInt(ethCount)}})
+
+		// Generate random user ID (16 bytes)
+		userID := make([]byte, 16)
+		_, err := rand.Read(userID)
+		if err != nil {
+			// Fallback to deterministic ID if random generation fails
+			userID = []byte(fmt.Sprintf("user_%d_%d", i, seed))
+		}
+
+		accounts = append(accounts, GoAccount{UserId: userID, Balance: GoBalance{Bitcoin: *big.NewInt(btcCount), Ethereum: *big.NewInt(ethCount)}})
 	}
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
 	merkleRoot = GoComputeMerkleRootFromAccounts(accounts)
