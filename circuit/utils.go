@@ -27,17 +27,17 @@ type GoAccount struct {
 }
 
 // padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
-func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
+func padToModBytes(num big.Int) (paddedValue []byte) {
+	value := num.Bytes()
+	isNegative := num.Sign() < 0
 	paddedValue = make([]byte, ModBytes-len(value))
-	// This will never be used in the circuit because it will be greater than 64 bytes and
-	// will thus fail rangechecking constraints.
-	// It is implemented for convenience in testing. We should consider removing this entirely.
+
+	// If the value is negative, it will fail the circuit range check (since the sign extended version
+	// will be greater than 64 bytes, which is an overflow). So we simple panic here.
 	if isNegative {
-		for i := range paddedValue {
-			paddedValue[i] = 0xFF
-		}
-		paddedValue[0] = 0x0F // this is 252 bits, an imperfect sign extension
+		panic("negative value cannot be used in the circuit")
 	}
+
 	paddedValue = append(paddedValue, value...)
 	return paddedValue
 }
@@ -45,8 +45,8 @@ func padToModBytes(value []byte, isNegative bool) (paddedValue []byte) {
 // goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	value = make([]byte, 0)
-	value = append(value, padToModBytes(balance.Bitcoin.Bytes(), balance.Bitcoin.Sign() == -1)...)
-	value = append(value, padToModBytes(balance.Ethereum.Bytes(), balance.Ethereum.Sign() == -1)...)
+	value = append(value, padToModBytes(balance.Bitcoin)...)
+	value = append(value, padToModBytes(balance.Ethereum)...)
 
 	return value
 }
@@ -93,7 +93,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
-			nodes[i] = padToModBytes([]byte{}, false)
+			nodes[i] = padToModBytes(*big.NewInt(0))
 		}
 	}
 	for i := TreeDepth - 1; i >= 0; i-- {
@@ -116,8 +116,8 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	return Balance{
-		Bitcoin:  padToModBytes(goBalance.Bitcoin.Bytes(), goBalance.Bitcoin.Sign() == -1),
-		Ethereum: padToModBytes(goBalance.Ethereum.Bytes(), goBalance.Ethereum.Sign() == -1),
+		Bitcoin:  padToModBytes(goBalance.Bitcoin),
+		Ethereum: padToModBytes(goBalance.Ethereum),
 	}
 }
 
@@ -135,24 +135,6 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 		accounts[i] = convertGoAccountToAccount(goAccount)
 	}
 	return accounts
-}
-
-// TODO: this function is completely unncecessary, even for testing since it only breaks the overflow constraint
-// negative numbers are straight up impossible in the circuit
-// SumGoAccountBalancesIncludingNegatives sums the balances of a list of GoAccounts, including negative balances.
-// Since we cannot use negative balances in the circuit, this function is only used for testing purposes.
-func SumGoAccountBalancesIncludingNegatives(accounts []GoAccount) GoBalance {
-	assetSum := GoBalance{Bitcoin: *big.NewInt(0), Ethereum: *big.NewInt(0)}
-	for _, account := range accounts {
-		b := make([]byte, 0)
-		b = append(b, padToModBytes(account.Balance.Bitcoin.Bytes(), account.Balance.Bitcoin.Sign() == -1)...)
-		assetSum.Bitcoin.Add(&assetSum.Bitcoin, new(big.Int).SetBytes(b))
-
-		b = make([]byte, 0)
-		b = append(b, padToModBytes(account.Balance.Ethereum.Bytes(), account.Balance.Ethereum.Sign() == -1)...)
-		assetSum.Ethereum.Add(&assetSum.Ethereum, new(big.Int).SetBytes(b))
-	}
-	return assetSum
 }
 
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.

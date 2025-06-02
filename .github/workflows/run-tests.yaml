@@ -1,20 +1,21 @@
 name: run-tests
 run-name: ${{ github.event_name }}-${{ github.actor }}-${{ github.run_number }}
 on:
-  push
-  pull_request
+  push:
+  pull_request:
 
 jobs:
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - name: Setup Go 1.24.x
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24.x'
-    - name: Tidy Go Dependencies
-      run: go mod tidy
-    - name: Build Go Project
-      run: make Build
-    - name: Run Go Tests
-      run: make test
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go 1.24.x
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24.x'
+      - name: Tidy Go Dependencies
+        run: go mod tidy
+      - name: Build Go Project
+        run: make build
+      - name: Run Go Tests
+        run: make test
