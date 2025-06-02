@@ -1,6 +1,8 @@
 package circuit
 
 import (
+	"crypto/rand"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -150,11 +152,21 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 }
 
 // GenerateTestData generates test data for a given number of accounts with a seed based on the account index.
+// Each account gets a random user ID.
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 	for i := 0; i < count; i++ {
 		iWithSeed := (i + seed) * (seed + 1)
 		btcCount, ethCount := int64(iWithSeed+45*iWithSeed+39), int64(iWithSeed*2+iWithSeed+1001)
-		accounts = append(accounts, GoAccount{UserId: []byte("foo"), Balance: GoBalance{Bitcoin: *big.NewInt(btcCount), Ethereum: *big.NewInt(ethCount)}})
+
+		// Generate random user ID (16 bytes)
+		userID := make([]byte, 16)
+		_, err := rand.Read(userID)
+		if err != nil {
+			// Fallback to deterministic ID if random generation fails
+			userID = []byte(fmt.Sprintf("user_%d_%d", i, seed))
+		}
+
+		accounts = append(accounts, GoAccount{UserId: userID, Balance: GoBalance{Bitcoin: *big.NewInt(btcCount), Ethereum: *big.NewInt(ethCount)}})
 	}
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
 	merkleRoot = GoComputeMerkleRootFromAccounts(accounts)
