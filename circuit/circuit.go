@@ -51,7 +51,7 @@ func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) 
 	for _, balance := range balances {
 		// Verifies each account has value between 0 and 2^64 - 1.
 		// If we incorporate bigger accounts, we can go up to 128 bits safely.
-		ranger.Check(balance, 64)
+		ranger.Check(balance, 128)
 	}
 }
 
