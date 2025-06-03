@@ -45,11 +45,8 @@ func TestVerifyRandomAccount(t *testing.T) {
 	}()
 
 	randomAccount := circuit.GoAccount{
-		UserId: []byte("random_user_id"),
-		Balance: circuit.GoBalance{
-			Bitcoin:  *big.NewInt(123456),
-			Ethereum: *big.NewInt(654321),
-		},
+		UserId:  []byte("random_user_id"),
+		Balance: circuit.ConstructGoBalance(big.NewInt(123456), big.NewInt(654321)),
 	}
 
 	// This should panic because the random account's hash is not in any of the proofs
@@ -69,7 +66,7 @@ func TestVerifyModifiedBalance(t *testing.T) {
 
 	// Modify one balance field
 	modifiedAccount := validAccount
-	modifiedAccount.Balance.Bitcoin = *big.NewInt(999999) // Different BTC balance
+	modifiedAccount.Balance[0] = big.NewInt(999999) // Different asset 1 balance
 
 	// This should panic because the modified account's hash doesn't match what's in the proof
 	Verify(batchCount, modifiedAccount)
@@ -128,11 +125,8 @@ func findProofPathForAccount(account circuit.GoAccount) (bottomProofIdx, midProo
 // TestVerifyProofPathRandomAccount tests that random accounts cannot be verified with any proof path
 func TestVerifyProofPathRandomAccount(t *testing.T) {
 	randomAccount := circuit.GoAccount{
-		UserId: []byte("random_user_id"),
-		Balance: circuit.GoBalance{
-			Bitcoin:  *big.NewInt(123456),
-			Ethereum: *big.NewInt(654321),
-		},
+		UserId:  []byte("random_user_id"),
+		Balance: circuit.ConstructGoBalance(big.NewInt(123456), big.NewInt(654321)),
 	}
 
 	accountHash := circuit.GoComputeMiMCHashForAccount(randomAccount)
@@ -178,7 +172,7 @@ func TestVerifyProofPathModifiedBalance(t *testing.T) {
 
 	// Modify one balance field
 	modifiedAccount := validAccount
-	modifiedAccount.Balance.Bitcoin = *big.NewInt(999999) // Different BTC balance
+	modifiedAccount.Balance[0] = big.NewInt(999999) // Different asset 1 balance
 
 	// Get the proofs for this account
 	bottomProof := ReadDataFromFile[CompletedProof]("out/public/test_proof_" + strconv.Itoa(bottomProofIdx) + ".json")
