@@ -40,7 +40,7 @@ type GoAccount struct {
 }
 
 // padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
-func padToModBytes(num big.Int) (paddedValue []byte) {
+func padToModBytes(num *big.Int) (paddedValue []byte) {
 	value := num.Bytes()
 	isNegative := num.Sign() < 0
 	paddedValue = make([]byte, ModBytes-len(value))
@@ -107,7 +107,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
-			nodes[i] = padToModBytes(*big.NewInt(0))
+			nodes[i] = padToModBytes(big.NewInt(0))
 		}
 	}
 	for i := TreeDepth - 1; i >= 0; i-- {
