@@ -57,8 +57,11 @@ func padToModBytes(num *big.Int) (paddedValue []byte) {
 
 // goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
+	if len(balance) != GetNumberOfAssets() {
+		panic("balance must have the same length as assets")
+	}
+
 	value = make([]byte, 0)
-	// TODO: do we need to check for balance size?
 	for _, asset := range balance {
 		value = append(value, padToModBytes(asset)...)
 	}
@@ -129,7 +132,11 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
-	balance := make(Balance, len(goBalance)) // TODO: enforce that len(goBalance) == GetNumberOfAssets()?
+	if len(goBalance) != GetNumberOfAssets() {
+		panic("balance must have the same length as assets")
+	}
+
+	balance := make(Balance, GetNumberOfAssets())
 	for i, asset := range goBalance {
 		balance[i] = padToModBytes(asset)
 	}
@@ -204,10 +211,23 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 	return accounts, goAccountBalanceSum, merkleRoot, merkleRootWithAssetSumHash
 }
 
-func (GoBalance *GoBalance) Equals(other GoBalance) bool {
-	if len(*GoBalance) != len(other) {
-		return false // TODO: should I panic instead?
+func ConstructGoBalance(initialBalances ...*big.Int) GoBalance {
+	balances := make(GoBalance, GetNumberOfAssets())
+	for i := range balances {
+		if i < len(initialBalances) {
+			balances[i] = initialBalances[i]
+		} else {
+			balances[i] = big.NewInt(0)
+		}
 	}
+	return balances
+}
+
+func (GoBalance *GoBalance) Equals(other GoBalance) bool {
+	if len(*GoBalance) != len(other) || len(*GoBalance) != GetNumberOfAssets() {
+		panic("balance must have the same length as assets")
+	}
+
 	for i := range *GoBalance {
 		if (*GoBalance)[i].Cmp(other[i]) != 0 {
 			return false
