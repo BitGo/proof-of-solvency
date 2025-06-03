@@ -1,13 +1,51 @@
 {
-  "Proof": "4Q4jiouYPZugvMvGRY9csQNJr7H2jh+jeM8hLfJ7J3uVSJmGONZIfXSvI33xTZY+SWIwop5/SRdW81kexjlCUBByI8NwvIvG37c4co9GWmI1RBb1nKCXf9mAjXqwj6GckIvqvDGproZrN/Thqaso0GAPtwvgwDXfKW1wAz2PFLkAAAAB4QDuSBQErZ6V9ymqT+ok60oZkhU8Tkqra7/AjmatxHalgEUMBFL7DcKP+DadBSKMu9jL1hX88U1P5/fhvD6vSw==",
-  "VK": "3ilrJ4NngvQclDF/5ytXaXAtu64rF28g6sv4M968bEXZWm0t67QLPrXrOgejqD2q3QpYxAptauuZTjcrOMhyc+iQZuYOHZ+S+wlER2wb7T569YgjgLIn/qFXDKoWSoZFEK/zHVzqJABYnEz9lV1JDuCoiJNtqhMmJOZZcOr1BQCMa27FQXrn8A8LSBhyUliiBTTTiEKevJyun+zt475DwBQx5vYb4vO5CmauCR0HVm0kqaM5CMYy7+Pf0rkcCXt95+7G7J5AyLDrdXRwzpgVjp9dDAFgmcpx6+8kQrDSyNPGQm/FVGforDhk8EGZKu8Gr2cEWMh4lIw9KhoM8R30gC2ByzjZjsVi/LliS7Y8wNqigyixvrEwf6TICqju5itGAAAABOw9/BvVWQiBXICZS8/je8kb2Ebbw9bIPDBFtesqmgOphSMYZ2skdm9b3UpNZM1LMjL0usGVFu5DUJcYJwfqs77CtebfesGGb4b8XArQH8exeMBYT8h4IoSxK7AG51YbwpRQMiDl/FjhXs9XCLgG227Sw+1T4zEqC0h1EKukn/JtAAAAAQAAAAAAAAABkopr7LBVtkqecKZK0ya4ATaFxEiEaG5blE7cPXSOdikeuRZlXtlf7rbd4n6qX3HR8n6dUg7ohR0xKxPxRTdutOP/qBz8508V37g946nUR5NIgNf2g2PRUbysRjS/N/2TLn9ugVsrfE/Ue8DbhonH1Mqiy2APsscr5Vd45nczOwM=",
+  "Proof": "3pVZTc7B/JZ1vTNQxpAmQnNnk3GjAG5b1oMZ6njBChDDeyseZ+YtpO4VzWpn+9z/X1trHIC8lCFZmF41YEPCXhQGkDqlQaUrOQQqFyhf4l/U9jE3Br7TqW75pZRmryeT6QFR8c4y5CNz7CYqDpRIIopnDi/rcabqZwhqfRW+1goAAAABiOU4ZthnjTpLrsKrJmf1pCAZDstgexfB8CKHE6sR6hWTeaUW5mDgkvFf/DdeT/eIvhckCY0n1YTWG6T6cmB+8A==",
+  "VK": "4JSO/VVnfnON4x0mk2FpQsk7AGzKjHqZaxYV+GtmrzmqKiZc27oHW6ffiBL7fKCCL0e2oCUtAVb6frWUgcwWg9hwlfZtj+XOxUR4a9cjrvasksO92KMfC8G+0UHYhIWcLLdLst3qKf02YqxUMfQs4Lcq7P1juSlVTRrVpz2vIqHbiJyaKCAMg+tKDeVUvX2Bq1wYLOKXSm9aNhdOT5Mh8A1wSOQwykIUNydLn/KiQSNU9mbp0W8USWK+PgV4OxYe7z8vkmZE81bF5tY2ECtuVtddW+umSymj92cPOpR9KDzMkutalq0kZ4CLfBbAsWSrDizQfsO+amDn5/sgBrRbqCuLXh342YJHvvy7xqHW3JlP5eNZ9CIFyG5L8avhnEebAAAABJohXhLYewzUc2Ts5eDVambgcL1DZI3wRNv75XGINiu/pYHy8Hk0aC1E7yfprZjp7goMKmoKYxtNwyvlb/SIVqzcZoDVi+MjaB0RF/9m+rL280xfX3gcYLiI7QNtmdtf1e77Vuj7Kpz+ejH68nbE2vzUNZGGO1WeE2gCSfH5d4LnAAAAAQAAAAAAAAABro7CMoPt62FSi4YS2z5Ev5oxlYi59kwuYi+DEtuH3NQpla3LUIBP/LVFyAjlqPHOPEbKyZASTpbQmoOUD8j2O9sY5xDaNQcfp1nHBxe2097hmE1D3f/Jbg1XjC8IkyvKLEamwQdjOh4iGUt17kGotUHSVHNwFmsciyWE80m8FIQ=",
   "AccountLeaves": [
-    "EXh56eRe3YrxpuOx9KaDck0Zt2GNxrx2Rj1/dES2mUI="
+    "Jo3Mn+N/M91r52+vRAJ/+OTOrCWiml6aGHzuFMnxVrw="
   ],
-  "MerkleRoot": "J1K0djlQFCLyS7jMEpzBPlbufpwB4eg23pJerq4H/9s=",
-  "MerkleRootWithAssetSumHash": "E6e+BfsAvv0OAyI2uOtMvm4jOaFxzVvFGMI8Jy0OzAc=",
-  "AssetSum": {
-    "Bitcoin": 1559850,
-    "Ethereum": 201575
-  }
+  "MerkleRoot": "I/ZF+mZ0p0Ru2a20tr+R40H11xG+z1xp1CJIdCOxMDI=",
+  "MerkleRootWithAssetSumHash": "GaSiRIfZfUbdMBBVod0vIpUsIkkiv5DJMzeIupun8LU=",
+  "AssetSum": [
+    70410,
+    80052,
+    83745,
+    72137,
+    84384,
+    87300,
+    94195,
+    100594,
+    75942,
+    82439,
+    69251,
+    93021,
+    69280,
+    97041,
+    57730,
+    82228,
+    83101,
+    86238,
+    65717,
+    70076,
+    96715,
+    74620,
+    81723,
+    93718,
+    63976,
+    92786,
+    95297,
+    77266,
+    89857,
+    94756,
+    107434,
+    72583,
+    90973,
+    102707,
+    70093,
+    81442,
+    90180,
+    92720,
+    79270,
+    79671
+  ]
 }

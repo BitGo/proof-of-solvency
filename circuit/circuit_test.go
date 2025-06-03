@@ -6,6 +6,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
 
@@ -14,8 +15,23 @@ const count = 16
 var baseCircuit = initBaseCircuit(count)
 
 func initBaseCircuit(count int) *Circuit {
+	// create a circuit with empty accounts and all-zero asset sum
+	emptyAccounts := make([]Account, count)
+	for i := range emptyAccounts {
+		zeroBalances := make([]frontend.Variable, GetNumberOfAssets())
+		for j := range zeroBalances {
+			zeroBalances[j] = frontend.Variable(0)
+		}
+		emptyAccounts[i].Balance = zeroBalances
+	}
+	emptySum := make(Balance, GetNumberOfAssets())
+	for i := range emptySum {
+		emptySum[i] = frontend.Variable(0)
+	}
+
 	return &Circuit{
-		Accounts: make([]Account, count),
+		Accounts: emptyAccounts,
+		AssetSum: emptySum,
 	}
 }
 
@@ -37,11 +53,11 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 
 	var c Circuit
 	goAccounts, _, _, _ := GenerateTestData(count, 0)
-	amt := make([]byte, 9) // this is 72 bits, overflowing our rangecheck
+	amt := make([]byte, 17) // this is 136 bits, overflowing our rangecheck
 	for b := range amt {
 		amt[b] = 0xFF
 	}
-	goAccounts[0].Balance.Bitcoin = *new(big.Int).SetBytes(amt)
+	goAccounts[0].Balance[0] = new(big.Int).SetBytes(amt)
 	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
 	goAssetSum := SumGoAccountBalances(goAccounts)
 	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)

@@ -17,11 +17,8 @@ func TestMaxAccountsConstraint(t *testing.T) {
 	accounts := make([]GoAccount, 1025)
 	for i := 0; i < 1025; i++ {
 		accounts[i] = GoAccount{
-			UserId: []byte{byte(i % 256)},
-			Balance: GoBalance{
-				Bitcoin:  *big.NewInt(1),
-				Ethereum: *big.NewInt(1),
-			},
+			UserId:  []byte{byte(i % 256)},
+			Balance: ConstructGoBalance(big.NewInt(1), big.NewInt(1)),
 		}
 	}
 
@@ -39,49 +36,34 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "All positive balances",
 			accounts: []GoAccount{
 				{
-					UserId: []byte("user1"),
-					Balance: GoBalance{
-						Bitcoin:  *big.NewInt(100),
-						Ethereum: *big.NewInt(200),
-					},
+					UserId:  []byte("user1"),
+					Balance: ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 				},
 				{
-					UserId: []byte("user2"),
-					Balance: GoBalance{
-						Bitcoin:  *big.NewInt(150),
-						Ethereum: *big.NewInt(250),
-					},
+					UserId:  []byte("user2"),
+					Balance: ConstructGoBalance(big.NewInt(150), big.NewInt(250)),
 				},
 			},
-			expected: GoBalance{
-				Bitcoin:  *big.NewInt(250),
-				Ethereum: *big.NewInt(450),
-			},
+			expected:    ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
 			shouldPanic: false,
 		},
 		{
-			name: "With negative Bitcoin balance",
+			name: "With negative balance for first asset",
 			accounts: []GoAccount{
 				{
-					UserId: []byte("user1"),
-					Balance: GoBalance{
-						Bitcoin:  *big.NewInt(-100),
-						Ethereum: *big.NewInt(200),
-					},
+					UserId:  []byte("user1"),
+					Balance: ConstructGoBalance(big.NewInt(-250), big.NewInt(450)),
 				},
 			},
 			expected:    GoBalance{}, // doesn't matter, should panic
 			shouldPanic: true,
 		},
 		{
-			name: "With negative Ethereum balance",
+			name: "With negative balance for second asset",
 			accounts: []GoAccount{
 				{
-					UserId: []byte("user1"),
-					Balance: GoBalance{
-						Bitcoin:  *big.NewInt(100),
-						Ethereum: *big.NewInt(-200),
-					},
+					UserId:  []byte("user1"),
+					Balance: ConstructGoBalance(big.NewInt(250), big.NewInt(-450)),
 				},
 			},
 			expected:    GoBalance{}, // doesn't matter, should panic
@@ -91,26 +73,17 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "Zero balances",
 			accounts: []GoAccount{
 				{
-					UserId: []byte("user1"),
-					Balance: GoBalance{
-						Bitcoin:  *big.NewInt(0),
-						Ethereum: *big.NewInt(0),
-					},
+					UserId:  []byte("user1"),
+					Balance: ConstructGoBalance(),
 				},
 			},
-			expected: GoBalance{
-				Bitcoin:  *big.NewInt(0),
-				Ethereum: *big.NewInt(0),
-			},
+			expected:    ConstructGoBalance(),
 			shouldPanic: false,
 		},
 		{
-			name:     "Empty account list",
-			accounts: []GoAccount{},
-			expected: GoBalance{
-				Bitcoin:  *big.NewInt(0),
-				Ethereum: *big.NewInt(0),
-			},
+			name:        "Empty account list",
+			accounts:    []GoAccount{},
+			expected:    ConstructGoBalance(),
 			shouldPanic: false,
 		},
 	}
@@ -148,75 +121,39 @@ func TestGoBalanceEquals(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "Equal balances",
-			balance1: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(200),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(200),
-			},
+			name:     "Equal balances",
+			balance1: ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
+			balance2: ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
 			expected: true,
 		},
 		{
-			name: "Different Bitcoin",
-			balance1: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(200),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *big.NewInt(150),
-				Ethereum: *big.NewInt(200),
-			},
+			name:     "Different first asset",
+			balance1: ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
+			balance2: ConstructGoBalance(big.NewInt(200), big.NewInt(450)),
 			expected: false,
 		},
 		{
-			name: "Different Ethereum",
-			balance1: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(200),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(250),
-			},
+			name:     "Different second asset",
+			balance1: ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
+			balance2: ConstructGoBalance(big.NewInt(250), big.NewInt(400)),
 			expected: false,
 		},
 		{
-			name: "Zero values",
-			balance1: GoBalance{
-				Bitcoin:  *big.NewInt(0),
-				Ethereum: *big.NewInt(0),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *big.NewInt(0),
-				Ethereum: *big.NewInt(0),
-			},
+			name:     "Zero values",
+			balance1: ConstructGoBalance(),
+			balance2: ConstructGoBalance(),
 			expected: true,
 		},
 		{
-			name: "Positive vs negative",
-			balance1: GoBalance{
-				Bitcoin:  *big.NewInt(100),
-				Ethereum: *big.NewInt(200),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *big.NewInt(-100),
-				Ethereum: *big.NewInt(200),
-			},
+			name:     "Positive vs negative",
+			balance1: ConstructGoBalance(big.NewInt(250), big.NewInt(450)),
+			balance2: ConstructGoBalance(big.NewInt(-250), big.NewInt(450)),
 			expected: false,
 		},
 		{
-			name: "Large numbers",
-			balance1: GoBalance{
-				Bitcoin:  *new(big.Int).SetUint64(^uint64(0)), // max uint64
-				Ethereum: *new(big.Int).SetUint64(^uint64(0)),
-			},
-			balance2: GoBalance{
-				Bitcoin:  *new(big.Int).SetUint64(^uint64(0)),
-				Ethereum: *new(big.Int).SetUint64(^uint64(0)),
-			},
+			name:     "Large numbers",
+			balance1: ConstructGoBalance(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1)), new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+			balance2: ConstructGoBalance(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1)), new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
 			expected: true,
 		},
 	}
