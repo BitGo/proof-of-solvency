@@ -53,7 +53,7 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 
 	var c Circuit
 	goAccounts, _, _, _ := GenerateTestData(count, 0)
-	amt := make([]byte, 9) // this is 72 bits, overflowing our rangecheck
+	amt := make([]byte, 17) // this is 136 bits, overflowing our rangecheck
 	for b := range amt {
 		amt[b] = 0xFF
 	}
