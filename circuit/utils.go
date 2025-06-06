@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	mathrand "math/rand"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -36,6 +37,11 @@ type GoBalance []*big.Int
 // through ConvertGoAccountToAccount.
 type GoAccount struct {
 	UserId  []byte
+	Balance GoBalance
+}
+
+type RawGoAccount struct {
+	UserId  string
 	Balance GoBalance
 }
 
@@ -157,6 +163,54 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 		accounts[i] = convertGoAccountToAccount(goAccount)
 	}
 	return accounts
+}
+
+// Convert raw userId base36 string to a []byte properly (by first interpreting as a number)
+// in this way, the GoAccount.UserId should not exceed BN254 curve limit as long as the string
+// is less than 49 characters in length
+func convertRawUserIdToBytes(userId string) []byte {
+	// remove any hyphens from user id
+	cleanedUserId := strings.ReplaceAll(userId, "-", "")
+
+	// convert to bytes (interpreted as a base36 string)
+	n := new(big.Int)
+	_, ok := n.SetString(cleanedUserId, 36)
+	if !ok {
+		panic("Failed to convert userId to big.Int from base36: " + cleanedUserId)
+	}
+	return n.Bytes()
+}
+
+// Converts a RawGoAccount (read from json file) to a GoAccount
+func ConvertRawGoAccountToGoAccount(rawAccount RawGoAccount) GoAccount {
+	return GoAccount{
+		UserId:  convertRawUserIdToBytes(rawAccount.UserId),
+		Balance: rawAccount.Balance,
+	}
+}
+
+// Converts a GoAccount to a RawGoAccount properly (for writing to json file)
+func ConvertGoAccountToRawGoAccount(goAccount GoAccount) RawGoAccount {
+	return RawGoAccount{
+		UserId:  new(big.Int).SetBytes(goAccount.UserId).Text(36),
+		Balance: goAccount.Balance,
+	}
+}
+
+func ConvertRawGoAccountsToGoAccounts(rawAccounts []RawGoAccount) []GoAccount {
+	accounts := make([]GoAccount, len(rawAccounts))
+	for i, rawAccount := range rawAccounts {
+		accounts[i] = ConvertRawGoAccountToGoAccount(rawAccount)
+	}
+	return accounts
+}
+
+func ConvertGoAccountsToRawGoAccounts(accounts []GoAccount) []RawGoAccount {
+	rawAccounts := make([]RawGoAccount, len(accounts))
+	for i, account := range accounts {
+		rawAccounts[i] = ConvertGoAccountToRawGoAccount(account)
+	}
+	return rawAccounts
 }
 
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
