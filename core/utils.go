@@ -92,11 +92,32 @@ func ConvertRawProofElementsToProofElements(rp RawProofElements) ProofElements {
 
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string) D {
 	var data D
-	err := readJson(filePath, &data)
-	if err != nil {
-		panic(err)
+
+	// if reading GoAccount or ProofElements, first read as the corresponding raw data interface
+	// then convert to the actual interface
+	switch any(data).(type) {
+	case circuit.GoAccount:
+		var rawData circuit.RawGoAccount
+		err := readJson(filePath, &rawData)
+		if err != nil {
+			panic(err)
+		}
+		return any(circuit.ConvertRawGoAccountToGoAccount(rawData)).(D)
+	case ProofElements:
+		var rawProofElements RawProofElements
+		err := readJson(filePath, &rawProofElements)
+		if err != nil {
+			panic(err)
+		}
+		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
+	default:
+		err := readJson(filePath, &data)
+		if err != nil {
+			panic(err)
+		}
+		return data
 	}
-	return data
+
 }
 
 func ReadDataFromFiles[D ProofElements | CompletedProof](batchCount int, prefix string) []D {
