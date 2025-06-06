@@ -1,10 +1,9 @@
 package circuit
 
 import (
-	"crypto/rand"
 	"fmt"
 	"math/big"
-	mathrand "math/rand"
+	"math/rand"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -240,23 +239,19 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 
 	// initialize random number generator with seed
-	source := mathrand.NewSource(int64(seed))
-	rng := mathrand.New(source)
+	source := rand.NewSource(int64(seed))
+	rng := rand.New(source)
 
 	for i := 0; i < count; i++ {
-		// generate random user ID (16 bytes)
-		userId := make([]byte, 16)
-		_, err := rand.Read(userId)
-		if err != nil {
-			// fallback to deterministic ID if random generation fails
-			userId = []byte(fmt.Sprintf("user_%d_%d", i, seed))
-		}
+		// generate random user ID
+		userId := convertRawUserIdToBytes(fmt.Sprintf("user%d", rng.Int31()))
 
+		// generate random balances between 0 and 10,500
 		balances := make(GoBalance, GetNumberOfAssets())
 		for i := range balances {
-			// generate random balances between 0 and 10,500
 			balances[i] = big.NewInt(rng.Int63n(10500))
 		}
+
 		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
 	}
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
