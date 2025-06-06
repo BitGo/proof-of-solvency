@@ -50,6 +50,15 @@ type ProofElements struct {
 	MerkleRootWithAssetSumHash []byte
 }
 
+// RawProofElements is contains all the same items as ProofElements, except the accounts are RawGoAccounts
+// should be used when writing to a json file or reading directly from a json file
+type RawProofElements struct {
+	Accounts                   []circuit.RawGoAccount
+	AssetSum                   *circuit.GoBalance
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+}
+
 type AccountLeaf = []byte
 
 // CompletedProof is an output of the prover. It contains the proof and public data. It can be published.
@@ -61,6 +70,24 @@ type CompletedProof struct {
 	MerkleRootWithAssetSumHash []byte
 	// AssetSum is optional.
 	AssetSum *circuit.GoBalance
+}
+
+func ConvertProofElementsToRawProofElements(p ProofElements) RawProofElements {
+	return RawProofElements{
+		Accounts:                   circuit.ConvertGoAccountsToRawGoAccounts(p.Accounts),
+		AssetSum:                   p.AssetSum,
+		MerkleRoot:                 p.MerkleRoot,
+		MerkleRootWithAssetSumHash: p.MerkleRootWithAssetSumHash,
+	}
+}
+
+func ConvertRawProofElementsToProofElements(rp RawProofElements) ProofElements {
+	return ProofElements{
+		Accounts:                   circuit.ConvertRawGoAccountsToGoAccounts(rp.Accounts),
+		AssetSum:                   rp.AssetSum,
+		MerkleRoot:                 rp.MerkleRoot,
+		MerkleRootWithAssetSumHash: rp.MerkleRootWithAssetSumHash,
+	}
 }
 
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string) D {
