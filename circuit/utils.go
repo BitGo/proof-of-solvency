@@ -1,10 +1,10 @@
 package circuit
 
 import (
-	"crypto/rand"
 	"fmt"
 	"math/big"
-	mathrand "math/rand"
+	"math/rand"
+	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
@@ -36,6 +36,11 @@ type GoBalance []*big.Int
 // through ConvertGoAccountToAccount.
 type GoAccount struct {
 	UserId  []byte
+	Balance GoBalance
+}
+
+type RawGoAccount struct {
+	UserId  string
 	Balance GoBalance
 }
 
@@ -159,6 +164,54 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
+// Convert raw userId base36 string to a []byte properly (by first interpreting as a number)
+// in this way, the GoAccount.UserId should not exceed BN254 curve limit as long as the string
+// is less than 49 characters in length
+func convertRawUserIdToBytes(userId string) []byte {
+	// remove any hyphens from user id
+	cleanedUserId := strings.ReplaceAll(userId, "-", "")
+
+	// convert to bytes (interpreted as a base36 string)
+	n := new(big.Int)
+	_, ok := n.SetString(cleanedUserId, 36)
+	if !ok {
+		panic("Failed to convert userId to big.Int from base36: " + cleanedUserId)
+	}
+	return n.Bytes()
+}
+
+// Converts a RawGoAccount (read from json file) to a GoAccount
+func ConvertRawGoAccountToGoAccount(rawAccount RawGoAccount) GoAccount {
+	return GoAccount{
+		UserId:  convertRawUserIdToBytes(rawAccount.UserId),
+		Balance: rawAccount.Balance,
+	}
+}
+
+// Converts a GoAccount to a RawGoAccount properly (for writing to json file)
+func ConvertGoAccountToRawGoAccount(goAccount GoAccount) RawGoAccount {
+	return RawGoAccount{
+		UserId:  new(big.Int).SetBytes(goAccount.UserId).Text(36),
+		Balance: goAccount.Balance,
+	}
+}
+
+func ConvertRawGoAccountsToGoAccounts(rawAccounts []RawGoAccount) []GoAccount {
+	accounts := make([]GoAccount, len(rawAccounts))
+	for i, rawAccount := range rawAccounts {
+		accounts[i] = ConvertRawGoAccountToGoAccount(rawAccount)
+	}
+	return accounts
+}
+
+func ConvertGoAccountsToRawGoAccounts(accounts []GoAccount) []RawGoAccount {
+	rawAccounts := make([]RawGoAccount, len(accounts))
+	for i, account := range accounts {
+		rawAccounts[i] = ConvertGoAccountToRawGoAccount(account)
+	}
+	return rawAccounts
+}
+
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
 // This panic is because any circuit that is passed negative balances will violate constraints.
 func SumGoAccountBalances(accounts []GoAccount) GoBalance {
@@ -186,23 +239,19 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
 
 	// initialize random number generator with seed
-	source := mathrand.NewSource(int64(seed))
-	rng := mathrand.New(source)
+	source := rand.NewSource(int64(seed))
+	rng := rand.New(source)
 
 	for i := 0; i < count; i++ {
-		// generate random user ID (16 bytes)
-		userId := make([]byte, 16)
-		_, err := rand.Read(userId)
-		if err != nil {
-			// fallback to deterministic ID if random generation fails
-			userId = []byte(fmt.Sprintf("user_%d_%d", i, seed))
-		}
+		// generate random user ID
+		userId := convertRawUserIdToBytes(fmt.Sprintf("user%d", rng.Int31()))
 
+		// generate random balances between 0 and 10,500
 		balances := make(GoBalance, GetNumberOfAssets())
 		for i := range balances {
-			// generate random balances between 0 and 10,500
 			balances[i] = big.NewInt(rng.Int63n(10500))
 		}
+
 		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
 	}
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
