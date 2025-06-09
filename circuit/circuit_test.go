@@ -83,6 +83,26 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 	)
 }
 
+func TestCircuitDoesNotAcceptIncorrectAssetSum(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// add 1 to first balance to get an incorrect asset sum
+	incorrectFirstBalance := new(big.Int).Add(GO_ASSET_SUM[0], big.NewInt(1))
+	badAssetSum := append(GoBalance{incorrectFirstBalance}, GO_ASSET_SUM[1:]...)
+
+	assert.ProverFailed(
+		BASE_CIRCUIT,
+		&Circuit{
+			Accounts:                   ConvertGoAccountsToAccounts(GO_ACCOUNTS),
+			AssetSum:                   ConvertGoBalanceToBalance(badAssetSum),
+			MerkleRoot:                 MERKLE_ROOT,
+			MerkleRootWithAssetSumHash: MERKLE_ROOT_WITH_ASSET_SUM_HASH,
+		},
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16),
+	)
+}
+
 func TestCircuitDoesNotAcceptInvalidMerkleRoot(t *testing.T) {
 	assert := test.NewAssert(t)
 
