@@ -35,6 +35,20 @@ func powOfTwo(n int) int {
 	return 1 << n
 }
 
+// Util to construct a Balance - given n initial balances, constructs a Balance with first n
+// elements initialized with input and rest initialized to 0 value frontend.Variables.
+func constructBalance(initialBalances ...frontend.Variable) Balance {
+	balances := make(Balance, GetNumberOfAssets())
+	for i := range balances {
+		if i < len(initialBalances) {
+			balances[i] = initialBalances[i]
+		} else {
+			balances[i] = frontend.Variable(0)
+		}
+	}
+	return balances
+}
+
 // Returns sum of 2 balances.
 func addBalance(api frontend.API, a, b Balance) Balance {
 	// Enforce balances have same length as AssetSymbols. This is done as a panic instead of a circuit
@@ -133,15 +147,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	// initialize running balance
-	var runningBalance = make([]frontend.Variable, GetNumberOfAssets())
-	for i := range runningBalance {
-		runningBalance[i] = frontend.Variable(0)
-	}
+	var runningBalance = constructBalance()
 
 	// create hasher
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
-		panic(err)
+		panic("error while instantiating MiMC hasher" + err.Error())
 	}
 
 	// for each account, add balance to running balance and assert balance in correct range
