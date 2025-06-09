@@ -35,14 +35,6 @@ func powOfTwo(n int) int {
 	return 1 << n
 }
 
-// Adds constraints to verify each balance is a value between [0, 2^128 - 1].
-func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
-	ranger := rangecheck.New(api)
-	for _, balance := range balances {
-		ranger.Check(balance, 128)
-	}
-}
-
 // Returns sum of 2 balances.
 func addBalance(api frontend.API, a, b Balance) Balance {
 	// Enforce balances have same length as AssetSymbols. This is done as a panic instead of a circuit
@@ -112,6 +104,20 @@ func assertBalancesAreEqual(api frontend.API, a, b Balance) {
 	// add constraints
 	for i := range a {
 		api.AssertIsEqual(a[i], b[i])
+	}
+}
+
+// Adds constraints to verify each balance is a value between [0, 2^128 - 1].
+func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
+	// enforce balances have same length as AssetSymbols (see note in addBalance)
+	if len(balances) != GetNumberOfAssets() {
+		panic("balances must have the same length as assets")
+	}
+
+	// add constraints
+	ranger := rangecheck.New(api)
+	for _, balance := range balances {
+		ranger.Check(balance, 128)
 	}
 }
 
