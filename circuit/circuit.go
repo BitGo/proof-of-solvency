@@ -30,12 +30,9 @@ type Circuit struct {
 	MerkleRootWithAssetSumHash frontend.Variable `gnark:",public"`
 }
 
-func PowOfTwo(n int) (result int) {
-	result = 1
-	for i := 0; i < n; i++ {
-		result *= 2
-	}
-	return result
+// Util to get power of two.
+func powOfTwo(n int) int {
+	return 1 << n
 }
 
 // Adds constraints to verify each balance is a value between [0, 2^128 - 1].
@@ -80,8 +77,8 @@ func hashAccount(hasher mimc.MiMC, account Account) (hash frontend.Variable) {
 // computeMerkleRootFromAccounts computes the Merkle root from the accounts.
 // GoComputeMerkleRootFromAccounts is the Go equivalent for general use.
 func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts []Account) (rootHash frontend.Variable) {
-	nodes := make([]frontend.Variable, PowOfTwo(TreeDepth))
-	for i := 0; i < PowOfTwo(TreeDepth); i++ {
+	nodes := make([]frontend.Variable, powOfTwo(TreeDepth))
+	for i := 0; i < powOfTwo(TreeDepth); i++ {
 		if i < len(accounts) {
 			nodes[i] = hashAccount(hasher, accounts[i])
 		} else {
@@ -89,7 +86,7 @@ func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts 
 		}
 	}
 	for i := TreeDepth - 1; i >= 0; i-- {
-		for j := 0; j < PowOfTwo(i); j++ {
+		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
 			hasher.Write(nodes[j*2], nodes[j*2+1])
 			nodes[j] = hasher.Sum()
@@ -115,7 +112,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// The creator of the proof can already do that by adding phony accounts with arbitrary balances,
 	// so violating this does not affect the security of the proof and does not introduce additional caveats.
 	// Thus, it is an inline check and not a constraint.
-	if len(circuit.Accounts) > PowOfTwo(TreeDepth) {
+	if len(circuit.Accounts) > powOfTwo(TreeDepth) {
 		panic("number of accounts exceeds the maximum number of leaves in the Merkle tree")
 	}
 	var runningBalance = make([]frontend.Variable, GetNumberOfAssets())

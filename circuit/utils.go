@@ -110,8 +110,8 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 	}
 
 	hasher := mimcCrypto.NewMiMC()
-	nodes := make([][]byte, PowOfTwo(TreeDepth))
-	for i := 0; i < PowOfTwo(TreeDepth); i++ {
+	nodes := make([][]byte, powOfTwo(TreeDepth))
+	for i := 0; i < powOfTwo(TreeDepth); i++ {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
@@ -119,7 +119,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 		}
 	}
 	for i := TreeDepth - 1; i >= 0; i-- {
-		for j := 0; j < PowOfTwo(i); j++ {
+		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[j*2])
 			if err != nil {
