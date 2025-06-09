@@ -13,14 +13,6 @@ import (
 const TreeDepth = 10
 
 // Balance is an input to the circuit and is only used in this package. GoBalance is preferred elsewhere.
-// We can't make this a fixed size array (if we do, we'll need to update this everytime we add a new asset).
-// Two options (I can think of):
-//  1. Just enforce through panics.
-//  2. Add extra constraints to the circuit to ensure that the length of the balance matches the number of assets.
-//     This option would also need an index associated with each asset, making it even more inefficient.
-//
-// Currently, we use the first option - we don't really need to use the second one, unless we find that without
-// those additional constraints, there could be a security/trust issue.
 type Balance []frontend.Variable
 
 // Account is an input to the circuit and is only used in this package. GoAccount is preferred elsewhere.
@@ -46,17 +38,17 @@ func PowOfTwo(n int) (result int) {
 	return result
 }
 
+// Adds constraints to verify each balance is a value between [0, 2^128 - 1].
 func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
 	ranger := rangecheck.New(api)
 	for _, balance := range balances {
-		// Verifies each account has value between 0 and 2^64 - 1.
-		// If we incorporate bigger accounts, we can go up to 128 bits safely.
 		ranger.Check(balance, 128)
 	}
 }
 
+// Returns sum of 2 balances.
 func addBalance(api frontend.API, a, b Balance) Balance {
-	// enforce all have the same length as assetsymbols
+	// enforce all have the same length as AssetSymbols
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
 	}
@@ -70,7 +62,6 @@ func addBalance(api frontend.API, a, b Balance) Balance {
 // hashBalance computes the MiMC hash of the balance. goConvertBalanceToBytes is the Go equivalent,
 // although it does not actually do the hashing step.
 func hashBalance(hasher mimc.MiMC, balances Balance) (hash frontend.Variable) {
-	// do we need to enforce this here?
 	if len(balances) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
 	}
@@ -107,6 +98,7 @@ func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts 
 	return nodes[0]
 }
 
+// Adds constraints to verify the given balances are equal.
 func assertBalancesAreEqual(api frontend.API, a, b Balance) {
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
