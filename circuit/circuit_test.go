@@ -6,90 +6,111 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
-	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
 )
 
-const count = 16
+// SETUP --------------------------------------------------------
+// Number of accounts to test with.
+const NUM_ACCOUNTS = 16
 
-var baseCircuit = initBaseCircuit(count)
-
+// Return a circuit with empty accounts and all-zero asset sum.
 func initBaseCircuit(count int) *Circuit {
-	// create a circuit with empty accounts and all-zero asset sum
 	emptyAccounts := make([]Account, count)
 	for i := range emptyAccounts {
-		zeroBalances := make([]frontend.Variable, GetNumberOfAssets())
-		for j := range zeroBalances {
-			zeroBalances[j] = frontend.Variable(0)
-		}
-		emptyAccounts[i].Balance = zeroBalances
-	}
-	emptySum := make(Balance, GetNumberOfAssets())
-	for i := range emptySum {
-		emptySum[i] = frontend.Variable(0)
+		emptyAccounts[i].Balance = constructBalance()
 	}
 
 	return &Circuit{
 		Accounts: emptyAccounts,
-		AssetSum: emptySum,
+		AssetSum: constructBalance(),
 	}
 }
 
+// Create base circuit to use for rest of tests
+var BASE_CIRCUIT = initBaseCircuit(NUM_ACCOUNTS)
+
+// Generate data once for all tests.
+var GO_ACCOUNTS, GO_ASSET_SUM, MERKLE_ROOT, MERKLE_ROOT_WITH_ASSET_SUM_HASH = GenerateTestData(NUM_ACCOUNTS, 0)
+
+// TESTS --------------------------------------------------------
 func TestCircuitWorks(t *testing.T) {
 	assert := test.NewAssert(t)
-
-	var c Circuit
-	goAccounts, goAssetSum, goMerkleRoot, goMerkleRootWithHash := GenerateTestData(count, 0) // Generate test data for 128 accounts
-	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
-	c.MerkleRoot = goMerkleRoot
-	c.MerkleRootWithAssetSumHash = goMerkleRootWithHash
-
-	assert.ProverSucceeded(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	assert.ProverSucceeded(
+		BASE_CIRCUIT,
+		&Circuit{
+			Accounts:                   ConvertGoAccountsToAccounts(GO_ACCOUNTS),
+			AssetSum:                   ConvertGoBalanceToBalance(GO_ASSET_SUM),
+			MerkleRoot:                 MERKLE_ROOT,
+			MerkleRootWithAssetSumHash: MERKLE_ROOT_WITH_ASSET_SUM_HASH,
+		},
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16),
+	)
 }
 
 func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	var c Circuit
-	goAccounts, _, _, _ := GenerateTestData(count, 0)
-	amt := make([]byte, 17) // this is 136 bits, overflowing our rangecheck
-	for b := range amt {
-		amt[b] = 0xFF
+	// create a balance with 136 bits, violating range constraint
+	overflowBalance := make([]byte, 17)
+	for b := range overflowBalance {
+		overflowBalance[b] = 0xFF
 	}
-	goAccounts[0].Balance[0] = new(big.Int).SetBytes(amt)
-	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	goAssetSum := SumGoAccountBalances(goAccounts)
-	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
-	merkleRoot := GoComputeMerkleRootFromAccounts(goAccounts)
-	c.MerkleRoot = merkleRoot
-	c.MerkleRootWithAssetSumHash = GoComputeMiMCHashForAccount(GoAccount{merkleRoot, goAssetSum})
 
-	assert.ProverFailed(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	// create account with overflow balance, based on first generated go account
+	badBalanceAccount := GoAccount{
+		UserId:  GO_ACCOUNTS[0].UserId,
+		Balance: append(GO_ACCOUNTS[0].Balance[1:], new(big.Int).SetBytes(overflowBalance)),
+	}
+
+	// add account with rest of generated accounts (remove first and add bad one to end)
+	// and generate merkle root and asset sum for these
+	badGoAccounts := append(GO_ACCOUNTS[1:], badBalanceAccount)
+	goAssetSum := SumGoAccountBalances(badGoAccounts)
+	merkleRoot := GoComputeMerkleRootFromAccounts(badGoAccounts)
+
+	// assert failure
+	assert.ProverFailed(
+		BASE_CIRCUIT,
+		&Circuit{
+			Accounts:                   ConvertGoAccountsToAccounts(badGoAccounts),
+			AssetSum:                   ConvertGoBalanceToBalance(goAssetSum),
+			MerkleRoot:                 merkleRoot,
+			MerkleRootWithAssetSumHash: GoComputeMiMCHashForAccount(GoAccount{merkleRoot, goAssetSum}),
+		},
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16),
+	)
 }
 
 func TestCircuitDoesNotAcceptInvalidMerkleRoot(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	var c Circuit
-	goAccounts, goAssetSum, _, goMerkleRootWithHash := GenerateTestData(count, 0) // Generate test data for 128 accounts
-	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
-	c.MerkleRoot = 123
-	c.MerkleRootWithAssetSumHash = goMerkleRootWithHash
-
-	assert.ProverFailed(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	assert.ProverFailed(
+		BASE_CIRCUIT,
+		&Circuit{
+			Accounts:                   ConvertGoAccountsToAccounts(GO_ACCOUNTS),
+			AssetSum:                   ConvertGoBalanceToBalance(GO_ASSET_SUM),
+			MerkleRoot:                 18724,
+			MerkleRootWithAssetSumHash: MERKLE_ROOT_WITH_ASSET_SUM_HASH,
+		},
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16),
+	)
 }
 
 func TestCircuitDoesNotAcceptInvalidMerkleRootWithSumHash(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	var c Circuit
-	goAccounts, goAssetSum, merkleRoot, _ := GenerateTestData(count, 0) // Generate test data for 128 accounts
-	c.Accounts = ConvertGoAccountsToAccounts(goAccounts)
-	c.AssetSum = ConvertGoBalanceToBalance(goAssetSum)
-	c.MerkleRoot = merkleRoot
-	c.MerkleRootWithAssetSumHash = 123
-
-	assert.ProverFailed(baseCircuit, &c, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
+	assert.ProverFailed(
+		BASE_CIRCUIT,
+		&Circuit{
+			Accounts:                   ConvertGoAccountsToAccounts(GO_ACCOUNTS),
+			AssetSum:                   ConvertGoBalanceToBalance(GO_ASSET_SUM),
+			MerkleRoot:                 MERKLE_ROOT,
+			MerkleRootWithAssetSumHash: 18724,
+		},
+		test.WithCurves(ecc.BN254),
+		test.WithBackends(backend.GROTH16),
+	)
 }
