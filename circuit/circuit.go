@@ -45,7 +45,10 @@ func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) 
 
 // Returns sum of 2 balances.
 func addBalance(api frontend.API, a, b Balance) Balance {
-	// enforce all have the same length as AssetSymbols
+	// Enforce balances have same length as AssetSymbols. This is done as a panic instead of a circuit
+	// constraint as it is not necessary for the proofs to be valid - the worst an exchange can do is
+	// add fake accounts with a different size balance array, which will only increase the liabilities.
+	// (User account balances cannot be tampered with due to the additional Merkle Tree hash verification).
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
 	}
@@ -59,6 +62,7 @@ func addBalance(api frontend.API, a, b Balance) Balance {
 // hashBalance computes the MiMC hash of the balance. goConvertBalanceToBytes is the Go equivalent,
 // although it does not actually do the hashing step.
 func hashBalance(hasher mimc.MiMC, balances Balance) (hash frontend.Variable) {
+	// enforce balances have same length as AssetSymbols (see note in addBalance)
 	if len(balances) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
 	}
@@ -76,7 +80,8 @@ func hashAccount(hasher mimc.MiMC, account Account) (hash frontend.Variable) {
 
 // computeMerkleRootFromAccounts computes the Merkle root from the accounts.
 // GoComputeMerkleRootFromAccounts is the Go equivalent for general use.
-func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts []Account) (rootHash frontend.Variable) {
+func computeMerkleRootFromAccounts(hasher mimc.MiMC, accounts []Account) (rootHash frontend.Variable) {
+	// store hashes of accounts in an array (pad with 0's to reach 2^TreeDepth nodes)
 	nodes := make([]frontend.Variable, powOfTwo(TreeDepth))
 	for i := 0; i < powOfTwo(TreeDepth); i++ {
 		if i < len(accounts) {
@@ -85,6 +90,8 @@ func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts 
 			nodes[i] = 0
 		}
 	}
+
+	// iteratively calculate hashes of parent nodes from bottom level to root
 	for i := TreeDepth - 1; i >= 0; i-- {
 		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
@@ -97,9 +104,12 @@ func computeMerkleRootFromAccounts(api frontend.API, hasher mimc.MiMC, accounts 
 
 // Adds constraints to verify the given balances are equal.
 func assertBalancesAreEqual(api frontend.API, a, b Balance) {
+	// enforce balances have same length as AssetSymbols (see note in addBalance)
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
 		panic("balances must have the same length as assets")
 	}
+
+	// add constraints
 	for i := range a {
 		api.AssertIsEqual(a[i], b[i])
 	}
@@ -115,24 +125,32 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	if len(circuit.Accounts) > powOfTwo(TreeDepth) {
 		panic("number of accounts exceeds the maximum number of leaves in the Merkle tree")
 	}
+
+	// initialize running balance
 	var runningBalance = make([]frontend.Variable, GetNumberOfAssets())
 	for i := range runningBalance {
 		runningBalance[i] = frontend.Variable(0)
 	}
 
+	// create hasher
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
 		panic(err)
 	}
+
+	// for each account, add balance to running balance and assert balance in correct range
 	for i := 0; i < len(circuit.Accounts); i++ {
 		account := circuit.Accounts[i]
 		assertBalanceNonNegativeAndNonOverflow(api, account.Balance)
 		runningBalance = addBalance(api, runningBalance, account.Balance)
 	}
+
+	// assert total balance = sum, merkle root matches, and merkle root with sum matches
 	assertBalancesAreEqual(api, runningBalance, circuit.AssetSum)
-	root := computeMerkleRootFromAccounts(api, hasher, circuit.Accounts)
+	root := computeMerkleRootFromAccounts(hasher, circuit.Accounts)
 	api.AssertIsEqual(root, circuit.MerkleRoot)
 	rootWithSum := hashAccount(hasher, Account{UserId: circuit.MerkleRoot, Balance: circuit.AssetSum})
 	api.AssertIsEqual(rootWithSum, circuit.MerkleRootWithAssetSumHash)
+
 	return nil
 }
