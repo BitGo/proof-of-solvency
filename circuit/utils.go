@@ -106,16 +106,21 @@ func GoComputeMiMCHashForAccount(account GoAccount) Hash {
 	return hasher.Sum(nil)
 }
 
-// GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes.
-func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
-	if len(hashes) > 1024 {
+// goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
+// given a particular TreeDepth.
+func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
+	// preliminary checks
+	if treeDepth < 0 {
+		panic("tree depth must be greater than 0")
+	}
+	if len(hashes) > powOfTwo(TreeDepth) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
-	// store hashes of accounts (pad with 0's to reach 2^TreeDepth nodes)
+	// store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
 	hasher := mimcCrypto.NewMiMC()
-	nodes := make([]Hash, powOfTwo(TreeDepth))
-	for i := 0; i < powOfTwo(TreeDepth); i++ {
+	nodes := make([]Hash, powOfTwo(treeDepth))
+	for i := 0; i < powOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
@@ -124,7 +129,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
 	}
 
 	// iteratively calculate hashes of parent nodes from bottom level to root
-	for i := TreeDepth - 1; i >= 0; i-- {
+	for i := treeDepth - 1; i >= 0; i-- {
 		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[j*2])
@@ -139,6 +144,12 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
 		}
 	}
 	return nodes[0]
+}
+
+// GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
+// assuming Merkle Tree of depth TreeDepth.
+func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
+	return goComputeMerkleRootFromHashes(hashes, TreeDepth)
 }
 
 // GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
