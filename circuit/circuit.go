@@ -8,10 +8,6 @@ import (
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
-// TreeDepth corresponds to a maximum of 1024 accounts per bottom level proof,
-// and 1024 proofs per higher level proof
-const TreeDepth = 10
-
 // Balance is an input to the circuit and is only used in this package. GoBalance is preferred elsewhere.
 type Balance []frontend.Variable
 
@@ -29,6 +25,12 @@ type Circuit struct {
 	MerkleRoot                 frontend.Variable `gnark:",public"`
 	MerkleRootWithAssetSumHash frontend.Variable `gnark:",public"`
 }
+
+// TreeDepth corresponds to a maximum of 1024 accounts per bottom level proof,
+// and 1024 proofs per higher level proof
+const TreeDepth = 10
+const INVALID_BALANCE_LENGTH_MESSAGE = "balance must have the same length as assets"
+const MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE = "number of hashes exceeds the maximum number of leaves in the Merkle tree"
 
 // Util to get power of two.
 func powOfTwo(n int) int {
@@ -56,7 +58,7 @@ func addBalance(api frontend.API, a, b Balance) Balance {
 	// add fake accounts with a different size balance array, which will only increase the liabilities.
 	// (User account balances cannot be tampered with due to the additional Merkle Tree hash verification).
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
-		panic("balances must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 	summedBalance := make([]frontend.Variable, len(a))
 	for i := range a {
@@ -65,12 +67,11 @@ func addBalance(api frontend.API, a, b Balance) Balance {
 	return summedBalance
 }
 
-// hashBalance computes the MiMC hash of the balance. goConvertBalanceToBytes is the Go equivalent,
-// although it does not actually do the hashing step.
+// hashBalance computes the MiMC hash of the balance.
 func hashBalance(hasher mimc.MiMC, balances Balance) (hash frontend.Variable) {
 	// enforce balances have same length as AssetSymbols (see note in addBalance)
 	if len(balances) != GetNumberOfAssets() {
-		panic("balances must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 	hasher.Reset()
 	hasher.Write(balances[:]...)
@@ -112,7 +113,7 @@ func computeMerkleRootFromAccounts(hasher mimc.MiMC, accounts []Account) (rootHa
 func assertBalancesAreEqual(api frontend.API, a, b Balance) {
 	// enforce balances have same length as AssetSymbols (see note in addBalance)
 	if len(a) != GetNumberOfAssets() || len(b) != GetNumberOfAssets() {
-		panic("balances must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 
 	// add constraints
@@ -125,7 +126,7 @@ func assertBalancesAreEqual(api frontend.API, a, b Balance) {
 func assertBalanceNonNegativeAndNonOverflow(api frontend.API, balances Balance) {
 	// enforce balances have same length as AssetSymbols (see note in addBalance)
 	if len(balances) != GetNumberOfAssets() {
-		panic("balances must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 
 	// add constraints
@@ -143,7 +144,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// so violating this does not affect the security of the proof and does not introduce additional caveats.
 	// Thus, it is an inline check and not a constraint.
 	if len(circuit.Accounts) > powOfTwo(TreeDepth) {
-		panic("number of accounts exceeds the maximum number of leaves in the Merkle tree")
+		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
 	// initialize running balance

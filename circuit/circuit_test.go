@@ -194,11 +194,11 @@ func TestCircuitPanicsOnAccountWithWrongBalanceLength(t *testing.T) {
 	for i, c := range tests {
 		err := test.IsSolved(&c, &c, ecc.BN254.ScalarField())
 		if err == nil {
-			t.Errorf("Test %d: Expected error 'balances must have the same length as assets' but there was no error.", i)
+			t.Errorf("Test %d: Expected error '%v' but there was no error.", i, INVALID_BALANCE_LENGTH_MESSAGE)
 		}
 
-		if message := strings.Split(err.Error(), "\n")[0]; message != "balances must have the same length as assets" {
-			t.Errorf("Test %d: Expected error with message 'balances must have the same length as assets', got: %v", i, message)
+		if message := strings.Split(err.Error(), "\n")[0]; message != INVALID_BALANCE_LENGTH_MESSAGE {
+			t.Errorf("Test %d: Expected error with message '%v', got: %v", i, INVALID_BALANCE_LENGTH_MESSAGE, message)
 		}
 	}
 
@@ -208,8 +208,8 @@ func TestCircuitPanicsWhenTooManyAccounts(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Expected panic, but did not panic")
-		} else if msg, ok := r.(string); !ok || msg != "number of accounts exceeds the maximum number of leaves in the Merkle tree" {
-			t.Errorf("Expected panic with message 'number of accounts exceeds the maximum number of leaves in the Merkle tree', got: %v", r)
+		} else if msg, ok := r.(string); !ok || msg != MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE {
+			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
 	tooMany := powOfTwo(TreeDepth) + 1
