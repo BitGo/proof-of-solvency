@@ -21,12 +21,12 @@ const NUM_ACCOUNTS = 16
 func initBaseCircuit(count int) *Circuit {
 	emptyAccounts := make([]Account, count)
 	for i := range emptyAccounts {
-		emptyAccounts[i].Balance = constructBalance()
+		emptyAccounts[i].Balance = ConstructBalance()
 	}
 
 	return &Circuit{
 		Accounts: emptyAccounts,
-		AssetSum: constructBalance(),
+		AssetSum: ConstructBalance(),
 	}
 }
 
@@ -215,12 +215,12 @@ func TestCircuitPanicsWhenTooManyAccounts(t *testing.T) {
 	tooMany := powOfTwo(TreeDepth) + 1
 	accounts := make([]Account, tooMany)
 	for i := range accounts {
-		accounts[i].Balance = constructBalance()
+		accounts[i].Balance = ConstructBalance()
 	}
 
 	badCircuit := &Circuit{
 		Accounts: accounts,
-		AssetSum: constructBalance(),
+		AssetSum: ConstructBalance(),
 	}
 
 	// Just accessing the Define method with this circuit should trigger the panic
