@@ -4,13 +4,136 @@ import (
 	"bytes"
 	"math/big"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/hash"
 )
 
-func TestMaxAccountsConstraint(t *testing.T) {
+func TestGoComputeMerkleRoot(t *testing.T) {
+	// some helper funcs to construct test cases:
+	constructHashSlice := func(nums ...int64) []Hash {
+		res := make([]Hash, len(nums))
+		for i, num := range nums {
+			res[i] = padToModBytes(big.NewInt(num))
+		}
+		return res
+	}
+
+	const hasherWriteErr = "writing to hasher failed"
+
+	hashTwoNodes := func(hasher hash.StateStorer, hash1, hash2 Hash) Hash {
+		hasher.Reset()
+		_, err := hasher.Write(hash1)
+		if err != nil {
+			panic(hasherWriteErr)
+		}
+		_, err = hasher.Write(hash2)
+		if err != nil {
+			panic(hasherWriteErr)
+		}
+		return hasher.Sum(nil)
+	}
+
+	// test cases:
+	tests := []struct {
+		name         string
+		hashes       []Hash
+		depth        int
+		expected     Hash
+		shouldPanic  bool
+		panicMessage string
+	}{
+		{
+			name:   "Single hash",
+			hashes: constructHashSlice(123),
+			depth:  0,
+			expected: func() Hash {
+				return padToModBytes(big.NewInt(123))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "Full tree of depth 2",
+			hashes: constructHashSlice(123, 345, 567, 789),
+			depth:  2,
+			expected: func() Hash {
+				hashes := constructHashSlice(123, 345, 567, 789)
+				hasher := mimc.NewMiMC()
+				return hashTwoNodes(hasher, hashTwoNodes(hasher, hashes[0], hashes[1]), hashTwoNodes(hasher, hashes[2], hashes[3]))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "Partial list of hashes, tree depth 2",
+			hashes: constructHashSlice(123, 234),
+			depth:  2,
+			expected: func() Hash {
+				hashes := constructHashSlice(123, 234)
+				hasher := mimc.NewMiMC()
+				return hashTwoNodes(hasher, hashTwoNodes(hasher, hashes[0], hashes[1]), hashTwoNodes(hasher, padToModBytes(big.NewInt(0)), padToModBytes(big.NewInt(0))))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:         "Too many leaves, tree depth 2",
+			hashes:       constructHashSlice(123, 345, 452, 234, 123),
+			depth:        2,
+			expected:     []byte{0}, // doesn't matter cause should panic
+			shouldPanic:  true,
+			panicMessage: MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE,
+		},
+		{
+			name:         "Invalid (negative) depth",
+			hashes:       constructHashSlice(123),
+			depth:        -1,
+			expected:     []byte{0},
+			shouldPanic:  true,
+			panicMessage: "tree depth must be greater than 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("goComputeMerkleRootFromHashes should have panicked.")
+					} else if msg, ok := r.(string); !ok || msg != tt.panicMessage {
+						t.Errorf("Expected panic with message '%v', got: %v", tt.panicMessage, r)
+					}
+				}()
+			}
+
+			result := goComputeMerkleRootFromHashes(tt.hashes, tt.depth)
+
+			if tt.shouldPanic {
+				t.Errorf("goComputeMerkleRootFromHashes should have panicked")
+				return
+			}
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("goComputeMerkleRootFromHashes() = %v, want %v", result, tt.expected)
+			}
+
+			for i := range result {
+				if result[i] != tt.expected[i] {
+					t.Errorf("goComputeMerkleRootFromHashes() = %v, want %v", result, tt.expected)
+				}
+			}
+		})
+	}
+}
+
+func TestPublicComputeMerkleRoootMaxAccountsConstraint(t *testing.T) {
 	// test that more than 1024 accounts causes a panic
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Expected panic with more than 1024 accounts")
+		} else if msg, ok := r.(string); !ok || msg != MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE {
+			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
 
