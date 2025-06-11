@@ -41,8 +41,6 @@ func readJson(filePath string, data interface{}) error {
 	return decoder.Decode(data)
 }
 
-type AccountLeaf = []byte
-
 func ConvertProofElementsToRawProofElements(p ProofElements) RawProofElements {
 	return RawProofElements{
 		Accounts:                   circuit.ConvertGoAccountsToRawGoAccounts(p.Accounts),
@@ -98,14 +96,6 @@ func ReadDataFromFiles[D ProofElements | CompletedProof](batchCount int, prefix 
 		proofElements[i] = file
 	}
 	return proofElements
-}
-
-func computeAccountLeavesFromAccounts(accounts []circuit.GoAccount) (accountLeaves []AccountLeaf) {
-	accountLeaves = make([]AccountLeaf, len(accounts))
-	for i, account := range accounts {
-		accountLeaves[i] = circuit.GoComputeMiMCHashForAccount(account)
-	}
-	return accountLeaves
 }
 
 func batchProofs(proofs []CompletedProof, batchSize int) [][]CompletedProof {

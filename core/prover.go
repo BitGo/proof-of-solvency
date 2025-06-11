@@ -13,6 +13,9 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
+// AccountLeaf is a []byte alias for readability.
+type AccountLeaf = []byte
+
 // PartialProof contains the results of compiling and setting up a circuit.
 type PartialProof struct {
 	pk groth16.ProvingKey
@@ -135,7 +138,7 @@ func generateProof(elements ProofElements) CompletedProof {
 	return CompletedProof{
 		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
 		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
-		AccountLeaves:              computeAccountLeavesFromAccounts(elements.Accounts),
+		AccountLeaves:              circuit.GoComputeMiMCHashesForAccounts(elements.Accounts),
 		MerkleRoot:                 freshMerkleRoot,
 		AssetSum:                   elements.AssetSum,
 		MerkleRootWithAssetSumHash: circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: freshMerkleRoot, Balance: *elements.AssetSum}),

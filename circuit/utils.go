@@ -102,6 +102,16 @@ func GoComputeMiMCHashForAccount(account GoAccount) Hash {
 	return hasher.Sum(nil)
 }
 
+// GoComputeMiMCHashesForAccounts computes the MiMC hash of each account in accounts and returns
+// them in a slice.
+func GoComputeMiMCHashesForAccounts(accounts []GoAccount) (hashes []Hash) {
+	hashes = make([]Hash, len(accounts))
+	for i, account := range accounts {
+		hashes[i] = GoComputeMiMCHashForAccount(account)
+	}
+	return hashes
+}
+
 // goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
 // given a particular TreeDepth.
 func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
@@ -151,11 +161,7 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
 // GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
 // It returns a consistent result with computeMerkleRootFromAccounts in the circuit.
 func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash Hash) {
-	hashes := make([]Hash, len(accounts))
-	for i, account := range accounts {
-		hashes[i] = GoComputeMiMCHashForAccount(account)
-	}
-	return GoComputeMerkleRootFromHashes(hashes)
+	return GoComputeMerkleRootFromHashes(GoComputeMiMCHashesForAccounts(accounts))
 }
 
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
