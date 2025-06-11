@@ -50,20 +50,16 @@ type RawGoAccount struct {
 	Balance GoBalance
 }
 
-// padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
+// padToModBytes returns the bytes of the input value padded to ModBytes length
 func padToModBytes(num *big.Int) (paddedValue []byte) {
-	value := num.Bytes()
-	isNegative := num.Sign() < 0
-	paddedValue = make([]byte, ModBytes-len(value))
-
 	// If the value is negative, it will fail the circuit range check (since the sign extended version
-	// will be greater than 64 bytes, which is an overflow). So we simple panic here.
-	if isNegative {
+	// will be greater than 128 bytes, which is an overflow). So we simply panic here.
+	if num.Sign() < 0 {
 		panic("negative value cannot be used in the circuit")
 	}
 
-	paddedValue = append(paddedValue, value...)
-	return paddedValue
+	value := num.Bytes()
+	return append(make([]byte, ModBytes-len(value)), value...)
 }
 
 // goConvertBalanceToBytes converts a GoBalance to bytes.
