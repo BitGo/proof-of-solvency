@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 )
 
 type Hash = []byte
@@ -82,7 +82,7 @@ func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 // GoComputeMiMCHashForAccount computes the MiMC hash of the account's balance and user ID
 // and returns a consistent result with hashAccount in the circuit.
 func GoComputeMiMCHashForAccount(account GoAccount) Hash {
-	hasher := mimcCrypto.NewMiMC()
+	hasher := mimc.NewMiMC()
 
 	// hash balances
 	_, err := hasher.Write(goConvertBalanceToBytes(account.Balance))
@@ -113,12 +113,11 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	if treeDepth < 0 {
 		panic("tree depth must be greater than 0")
 	}
-	if len(hashes) > powOfTwo(TreeDepth) {
+	if len(hashes) > powOfTwo(treeDepth) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
 	// store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
-	hasher := mimcCrypto.NewMiMC()
 	nodes := make([]Hash, powOfTwo(treeDepth))
 	for i := 0; i < powOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
@@ -129,6 +128,7 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	}
 
 	// iteratively calculate hashes of parent nodes from bottom level to root
+	hasher := mimc.NewMiMC()
 	for i := treeDepth - 1; i >= 0; i-- {
 		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
