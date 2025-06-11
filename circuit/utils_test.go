@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/test"
 )
 
 func TestPadToModBytes(t *testing.T) {
@@ -56,6 +57,25 @@ func TestPadToModBytes(t *testing.T) {
 				t.Errorf("padToModBytes() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGoComputeMiMCHashesForAccounts(t *testing.T) {
+	assert := test.NewAssert(t)
+	accounts := []GoAccount{
+		{UserId: []byte{1, 2}, Balance: ConstructGoBalance(big.NewInt(1000000000), big.NewInt(11111))},
+		{UserId: []byte{1, 3}, Balance: ConstructGoBalance(big.NewInt(0), big.NewInt(22222))},
+	}
+
+	expectedHashes := []Hash{
+		{0x1, 0x8a, 0x24, 0xf9, 0x77, 0x3a, 0xaf, 0x74, 0x41, 0x1d, 0x2d, 0x6b, 0x4f, 0xc0, 0xe8, 0xc1, 0x3, 0x7, 0xd3, 0x84, 0x34, 0xf8, 0xf, 0x77, 0xa0, 0x55, 0x7, 0xf8, 0xee, 0xc4, 0xa, 0xb1},
+		{0x25, 0x4d, 0x52, 0xf9, 0x5d, 0x98, 0x4c, 0x35, 0x43, 0xd0, 0xab, 0xff, 0x7d, 0xb1, 0xf, 0x19, 0x3b, 0xa6, 0x53, 0xab, 0x22, 0xe7, 0x1, 0xe4, 0x44, 0x52, 0x11, 0x45, 0xfc, 0x53, 0xbc, 0xcd},
+	}
+
+	actualHashes := GoComputeMiMCHashesForAccounts(accounts)
+
+	for i, leaf := range actualHashes {
+		assert.Equal(expectedHashes[i], leaf, "Account leaves should match")
 	}
 }
 
@@ -164,14 +184,8 @@ func TestGoComputeMerkleRoot(t *testing.T) {
 				return
 			}
 
-			if len(result) != len(tt.expected) {
+			if !bytes.Equal(result, tt.expected) {
 				t.Errorf("goComputeMerkleRootFromHashes() = %v, want %v", result, tt.expected)
-			}
-
-			for i := range result {
-				if result[i] != tt.expected[i] {
-					t.Errorf("goComputeMerkleRootFromHashes() = %v, want %v", result, tt.expected)
-				}
 			}
 		})
 	}
