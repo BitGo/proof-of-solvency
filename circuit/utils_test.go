@@ -9,6 +9,56 @@ import (
 	"github.com/consensys/gnark-crypto/hash"
 )
 
+func TestPadToModBytes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       *big.Int
+		expected    []byte
+		shouldPanic bool
+	}{
+		{
+			name:        "Zero value",
+			input:       big.NewInt(0),
+			expected:    make([]byte, 32), // ModBytes is 32, all zeros
+			shouldPanic: false,
+		},
+		{
+			name:        "Regular number",
+			input:       big.NewInt(123456),
+			expected:    append(make([]byte, 29), []byte{0x01, 0xe2, 0x40}...), // 123456 in big-endian bytes, padded to 32 bytes
+			shouldPanic: false,
+		},
+		{
+			name:        "Negative number",
+			input:       big.NewInt(-5),
+			shouldPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("padToModBytes should have panicked with negative value")
+					}
+				}()
+			}
+
+			result := padToModBytes(tt.input)
+
+			if tt.shouldPanic {
+				t.Errorf("padToModBytes should have panicked")
+				return
+			}
+
+			if !bytes.Equal(result, tt.expected) {
+				t.Errorf("padToModBytes() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestGoComputeMerkleRoot(t *testing.T) {
 	// some helper funcs to construct test cases:
 	constructHashSlice := func(nums ...int64) []Hash {
