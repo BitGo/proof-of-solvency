@@ -8,37 +8,14 @@ import (
 	"bitgo.com/proof_of_reserves/circuit"
 )
 
-func writeJson(filePath string, data interface{}) error {
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
+func ConvertProofToGoAccount(proof CompletedProof) circuit.GoAccount {
+	if proof.AssetSum == nil {
+		panic("AssetSum is nil, cannot convert to GoAccount")
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(file)
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(data)
-}
-
-func readJson(filePath string, data interface{}) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return err
+	return circuit.GoAccount{
+		UserId:  proof.MerkleRoot,
+		Balance: *proof.AssetSum,
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(file)
-
-	decoder := json.NewDecoder(file)
-	return decoder.Decode(data)
 }
 
 func ConvertProofElementsToRawProofElements(p ProofElements) RawProofElements {
@@ -59,6 +36,61 @@ func ConvertRawProofElementsToProofElements(rp RawProofElements) ProofElements {
 	}
 }
 
+func writeJson(filePath string, data interface{}) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Couldn't close file" + err.Error())
+		}
+	}(file)
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(data)
+}
+
+func WriteDataToFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string, data D) {
+	// if writing GoAccount or ProofElements, first convert to corresponding raw data interface
+	// then write to file
+	switch v := any(data).(type) {
+	case circuit.GoAccount:
+		err := writeJson(filePath, circuit.ConvertGoAccountToRawGoAccount(v))
+		if err != nil {
+			panic("Error writing raw go account to file: " + err.Error())
+		}
+	case ProofElements:
+		err := writeJson(filePath, ConvertProofElementsToRawProofElements(v))
+		if err != nil {
+			panic("Error writing raw proof elements to file: " + err.Error())
+		}
+	default:
+		err := writeJson(filePath, data)
+		if err != nil {
+			panic("Error writing completed proof to file: " + err.Error())
+		}
+	}
+}
+
+func readJson(filePath string, data interface{}) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic("Error closing file: " + err.Error())
+		}
+	}(file)
+
+	decoder := json.NewDecoder(file)
+	return decoder.Decode(data)
+}
+
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string) D {
 	var data D
 
@@ -69,20 +101,20 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](file
 		var rawData circuit.RawGoAccount
 		err := readJson(filePath, &rawData)
 		if err != nil {
-			panic(err)
+			panic("Error reading raw go account from file: " + err.Error())
 		}
 		return any(circuit.ConvertRawGoAccountToGoAccount(rawData)).(D)
 	case ProofElements:
 		var rawProofElements RawProofElements
 		err := readJson(filePath, &rawProofElements)
 		if err != nil {
-			panic(err)
+			panic("Error reading raw proof elements from file: " + err.Error())
 		}
 		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
 	default:
 		err := readJson(filePath, &data)
 		if err != nil {
-			panic(err)
+			panic("Error reading completed proof from file: " + err.Error())
 		}
 		return data
 	}
@@ -112,14 +144,4 @@ func batchProofs(proofs []CompletedProof, batchSize int) [][]CompletedProof {
 		batches = append(batches, proofs[i:end])
 	}
 	return batches
-}
-
-func ConvertProofToGoAccount(proof CompletedProof) circuit.GoAccount {
-	if proof.AssetSum == nil {
-		panic("AssetSum is nil, cannot convert to GoAccount")
-	}
-	return circuit.GoAccount{
-		UserId:  proof.MerkleRoot,
-		Balance: *proof.AssetSum,
-	}
 }
