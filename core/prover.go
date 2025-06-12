@@ -134,14 +134,13 @@ func generateProof(elements ProofElements) CompletedProof {
 	}
 
 	// construct and return completed proof
-	freshMerkleRoot := circuit.GoComputeMerkleRootFromAccounts(elements.Accounts)
 	return CompletedProof{
 		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
 		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
 		AccountLeaves:              circuit.GoComputeMiMCHashesForAccounts(elements.Accounts),
-		MerkleRoot:                 freshMerkleRoot,
+		MerkleRoot:                 elements.MerkleRoot,
 		AssetSum:                   elements.AssetSum,
-		MerkleRootWithAssetSumHash: circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: freshMerkleRoot, Balance: *elements.AssetSum}),
+		MerkleRootWithAssetSumHash: elements.MerkleRootWithAssetSumHash,
 	}
 }
 
@@ -164,10 +163,7 @@ func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum boo
 			proof.AssetSum = nil
 		}
 		filePath := prefix + strconv.Itoa(i) + ".json"
-		err := writeJson(filePath, proof)
-		if err != nil {
-			panic(err)
-		}
+		WriteDataToFile(filePath, proof)
 	}
 }
 

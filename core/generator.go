@@ -20,10 +20,7 @@ func GenerateData(batchCount int, countPerBatch int) {
 		secretData.AssetSum = &assetSum
 
 		// write to file
-		err := writeJson(filePath, ConvertProofElementsToRawProofElements(secretData))
-		if err != nil {
-			panic(err)
-		}
+		WriteDataToFile(filePath, secretData)
 
 		lastAccount = &secretData.Accounts[0]
 	}
@@ -33,8 +30,5 @@ func GenerateData(batchCount int, countPerBatch int) {
 	}
 
 	// write last account to separate file to test with
-	err := writeJson("out/user/test_account.json", circuit.ConvertGoAccountToRawGoAccount(*lastAccount))
-	if err != nil {
-		panic(err)
-	}
+	WriteDataToFile("out/user/test_account.json", *lastAccount)
 }
