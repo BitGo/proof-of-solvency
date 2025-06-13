@@ -45,7 +45,7 @@ func TestVerifyRandomAccount(t *testing.T) {
 	}()
 
 	randomAccount := circuit.GoAccount{
-		UserId:  []byte("random_user_id"),
+		UserId:  []byte("random-user-id"),
 		Balance: circuit.ConstructGoBalance(big.NewInt(123456), big.NewInt(654321)),
 	}
 
@@ -125,7 +125,7 @@ func findProofPathForAccount(account circuit.GoAccount) (bottomProofIdx, midProo
 // TestVerifyProofPathRandomAccount tests that random accounts cannot be verified with any proof path
 func TestVerifyProofPathRandomAccount(t *testing.T) {
 	randomAccount := circuit.GoAccount{
-		UserId:  []byte("random_user_id"),
+		UserId:  []byte("random-user-id"),
 		Balance: circuit.ConstructGoBalance(big.NewInt(123456), big.NewInt(654321)),
 	}
 

@@ -1,8 +1,9 @@
 package core
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
 	"strconv"
+
+	"bitgo.com/proof_of_reserves/circuit"
 )
 
 func writeTestDataToFile(batchCount int, countPerBatch int) {
@@ -13,7 +14,7 @@ func writeTestDataToFile(batchCount int, countPerBatch int) {
 		var assetSum circuit.GoBalance
 		secretData.Accounts, assetSum, secretData.MerkleRoot, secretData.MerkleRootWithAssetSumHash = circuit.GenerateTestData(countPerBatch, i+11)
 		secretData.AssetSum = &assetSum
-		err := writeJson(filePath, secretData)
+		err := writeJson(filePath, ConvertProofElementsToRawProofElements(secretData))
 		if err != nil {
 			panic(err)
 		}
@@ -24,7 +25,7 @@ func writeTestDataToFile(batchCount int, countPerBatch int) {
 	if lastAccount == nil {
 		panic("lastAccount is nil")
 	}
-	err := writeJson("out/user/test_account.json", lastAccount)
+	err := writeJson("out/user/test_account.json", circuit.ConvertGoAccountToRawGoAccount(*lastAccount))
 	if err != nil {
 		panic(err)
 	}
