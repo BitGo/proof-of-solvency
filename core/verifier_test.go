@@ -18,32 +18,36 @@ var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_
 var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
 
 func TestVerifyInclusionInProof(t *testing.T) {
-	assert := test.NewAssert(t)
-
 	accountHash := []byte{0x12, 0x34}
 	proof := CompletedProof{AccountLeaves: []AccountLeaf{accountHash}}
 
 	// finds when first item
-	verifyInclusionInProof(accountHash, []CompletedProof{proof})
+	if err := verifyInclusionInProof(accountHash, []CompletedProof{proof}); err != nil {
+		t.Errorf("Expected account to be found in proof, but got error: %v", err)
+	}
 
 	// finds in not first item
 	proofs := make([]CompletedProof, 100)
 	proofs[99] = proof
-	verifyInclusionInProof(accountHash, proofs)
+	if err := verifyInclusionInProof(accountHash, proofs); err != nil {
+		t.Errorf("Expected account to be found in proof at index 99, but got error: %v", err)
+	}
 
 	// does not find in empty proofs
 	proofs = make([]CompletedProof, 0)
-	assert.Panics(func() { verifyInclusionInProof(accountHash, proofs) }, "should panic when no proofs are provided")
+	if err := verifyInclusionInProof(accountHash, proofs); err == nil {
+		t.Errorf("Expected error for empty proofs, but got nil")
+	}
 
 	// does not find in non-empty proofs
 	proofs = make([]CompletedProof, 100)
 	proofs[0] = CompletedProof{AccountLeaves: []AccountLeaf{[]byte{0x56, 0x78}}}
-	assert.Panics(func() { verifyInclusionInProof(accountHash, proofs) }, "should panic when account hash is not found in proofs")
+	if err := verifyInclusionInProof(accountHash, proofs); err == nil {
+		t.Errorf("Expected error when account not found in proofs, but got nil")
+	}
 }
 
 func TestVerifyProofFails(t *testing.T) {
-	assert := test.NewAssert(t)
-
 	proof := CompletedProof{
 		Proof:                      "dummy",
 		VK:                         "stuff",
@@ -57,16 +61,32 @@ func TestVerifyProofFails(t *testing.T) {
 	proofLowerModifiedMerkleRootAssetSumHash := proofLower0
 	proofLowerModifiedMerkleRootAssetSumHash.MerkleRootWithAssetSumHash = []byte{0x56, 0x78}
 
-	assert.Panics(func() { verifyProof(proof) }, "should panic when proof is invalid")
-	assert.Panics(func() { verifyProof(proofLowerModifiedMerkleRoot) }, "should panic when merkle root is invalid")
-	assert.Panics(func() { verifyProof(proofLowerModifiedMerkleRootAssetSumHash) }, "should panic when merkle root with asset sum hash is invalid")
+	// Should return error for invalid proofs
+	if err := verifyProof(proof); err == nil {
+		t.Errorf("Expected verifyProof to return error for invalid proof")
+	}
+	if err := verifyProof(proofLowerModifiedMerkleRoot); err == nil {
+		t.Errorf("Expected verifyProof to return error when merkle root is invalid")
+	}
+	if err := verifyProof(proofLowerModifiedMerkleRootAssetSumHash); err == nil {
+		t.Errorf("Expected verifyProof to return error when merkle root with asset sum hash is invalid")
+	}
 }
 
 func TestVerifyProofPasses(t *testing.T) {
-	verifyProof(proofLower0)
-	verifyProof(proofLower1)
-	verifyProof(proofMid)
-	verifyProof(proofTop)
+	// Should return nil for valid proofs
+	if err := verifyProof(proofLower0); err != nil {
+		t.Errorf("Expected verifyProof to return nil for valid lower proof 0, got error: %v", err)
+	}
+	if err := verifyProof(proofLower1); err != nil {
+		t.Errorf("Expected verifyProof to return nil for valid lower proof 1, got error: %v", err)
+	}
+	if err := verifyProof(proofMid); err != nil {
+		t.Errorf("Expected verifyProof to return nil for valid mid proof, got error: %v", err)
+	}
+	if err := verifyProof(proofTop); err != nil {
+		t.Errorf("Expected verifyProof to return nil for valid top proof, got error: %v", err)
+	}
 }
 
 func TestVerifyProofsFailsWhenIncomplete(t *testing.T) {
