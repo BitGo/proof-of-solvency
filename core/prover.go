@@ -125,12 +125,12 @@ func generateProof(elements ProofElements) CompletedProof {
 	proofBytes := bytes.Buffer{}
 	_, err = proof.WriteTo(&proofBytes)
 	if err != nil {
-		panic(err)
+		panic("Failed to read proof bytes from proof: " + err.Error())
 	}
 	vkBytes := bytes.Buffer{}
 	_, err = cachedProof.vk.WriteTo(&vkBytes)
 	if err != nil {
-		panic(err)
+		panic("Failed to read verification key bytes from proof: " + err.Error())
 	}
 
 	// construct and return completed proof
