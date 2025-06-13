@@ -4,13 +4,200 @@ import (
 	"bytes"
 	"math/big"
 	"testing"
+
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/hash"
+	"github.com/consensys/gnark/test"
 )
 
-func TestMaxAccountsConstraint(t *testing.T) {
+func TestPadToModBytes(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       *big.Int
+		expected    []byte
+		shouldPanic bool
+	}{
+		{
+			name:        "Zero value",
+			input:       big.NewInt(0),
+			expected:    make([]byte, 32), // ModBytes is 32, all zeros
+			shouldPanic: false,
+		},
+		{
+			name:        "Regular number",
+			input:       big.NewInt(123456),
+			expected:    append(make([]byte, 29), []byte{0x01, 0xe2, 0x40}...), // 123456 in big-endian bytes, padded to 32 bytes
+			shouldPanic: false,
+		},
+		{
+			name:        "Negative number",
+			input:       big.NewInt(-5),
+			shouldPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("padToModBytes should have panicked with negative value")
+					}
+				}()
+			}
+
+			result := padToModBytes(tt.input)
+
+			if tt.shouldPanic {
+				t.Errorf("padToModBytes should have panicked")
+				return
+			}
+
+			if !bytes.Equal(result, tt.expected) {
+				t.Errorf("padToModBytes() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGoComputeMiMCHashesForAccounts(t *testing.T) {
+	assert := test.NewAssert(t)
+	accounts := []GoAccount{
+		{UserId: []byte{1, 2}, Balance: ConstructGoBalance(big.NewInt(1000000000), big.NewInt(11111))},
+		{UserId: []byte{1, 3}, Balance: ConstructGoBalance(big.NewInt(0), big.NewInt(22222))},
+	}
+
+	expectedHashes := []Hash{
+		{0x1, 0x8a, 0x24, 0xf9, 0x77, 0x3a, 0xaf, 0x74, 0x41, 0x1d, 0x2d, 0x6b, 0x4f, 0xc0, 0xe8, 0xc1, 0x3, 0x7, 0xd3, 0x84, 0x34, 0xf8, 0xf, 0x77, 0xa0, 0x55, 0x7, 0xf8, 0xee, 0xc4, 0xa, 0xb1},
+		{0x25, 0x4d, 0x52, 0xf9, 0x5d, 0x98, 0x4c, 0x35, 0x43, 0xd0, 0xab, 0xff, 0x7d, 0xb1, 0xf, 0x19, 0x3b, 0xa6, 0x53, 0xab, 0x22, 0xe7, 0x1, 0xe4, 0x44, 0x52, 0x11, 0x45, 0xfc, 0x53, 0xbc, 0xcd},
+	}
+
+	actualHashes := GoComputeMiMCHashesForAccounts(accounts)
+
+	for i, leaf := range actualHashes {
+		assert.Equal(expectedHashes[i], leaf, "Account leaves should match")
+	}
+}
+
+func TestGoComputeMerkleRoot(t *testing.T) {
+	// some helper funcs to construct test cases:
+	constructHashSlice := func(nums ...int64) []Hash {
+		res := make([]Hash, len(nums))
+		for i, num := range nums {
+			res[i] = padToModBytes(big.NewInt(num))
+		}
+		return res
+	}
+
+	const hasherWriteErr = "writing to hasher failed"
+
+	hashTwoNodes := func(hasher hash.StateStorer, hash1, hash2 Hash) Hash {
+		hasher.Reset()
+		_, err := hasher.Write(hash1)
+		if err != nil {
+			panic(hasherWriteErr)
+		}
+		_, err = hasher.Write(hash2)
+		if err != nil {
+			panic(hasherWriteErr)
+		}
+		return hasher.Sum(nil)
+	}
+
+	// test cases:
+	tests := []struct {
+		name         string
+		hashes       []Hash
+		depth        int
+		expected     Hash
+		shouldPanic  bool
+		panicMessage string
+	}{
+		{
+			name:   "Single hash",
+			hashes: constructHashSlice(123),
+			depth:  0,
+			expected: func() Hash {
+				return padToModBytes(big.NewInt(123))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "Full tree of depth 2",
+			hashes: constructHashSlice(123, 345, 567, 789),
+			depth:  2,
+			expected: func() Hash {
+				hashes := constructHashSlice(123, 345, 567, 789)
+				hasher := mimc.NewMiMC()
+				return hashTwoNodes(hasher, hashTwoNodes(hasher, hashes[0], hashes[1]), hashTwoNodes(hasher, hashes[2], hashes[3]))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "Partial list of hashes, tree depth 2",
+			hashes: constructHashSlice(123, 234),
+			depth:  2,
+			expected: func() Hash {
+				hashes := constructHashSlice(123, 234)
+				hasher := mimc.NewMiMC()
+				return hashTwoNodes(hasher, hashTwoNodes(hasher, hashes[0], hashes[1]), hashTwoNodes(hasher, padToModBytes(big.NewInt(0)), padToModBytes(big.NewInt(0))))
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:         "Too many leaves, tree depth 2",
+			hashes:       constructHashSlice(123, 345, 452, 234, 123),
+			depth:        2,
+			expected:     []byte{0}, // doesn't matter cause should panic
+			shouldPanic:  true,
+			panicMessage: MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE,
+		},
+		{
+			name:         "Invalid (negative) depth",
+			hashes:       constructHashSlice(123),
+			depth:        -1,
+			expected:     []byte{0},
+			shouldPanic:  true,
+			panicMessage: "tree depth must be greater than 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("goComputeMerkleRootFromHashes should have panicked.")
+					} else if msg, ok := r.(string); !ok || msg != tt.panicMessage {
+						t.Errorf("Expected panic with message '%v', got: %v", tt.panicMessage, r)
+					}
+				}()
+			}
+
+			result := goComputeMerkleRootFromHashes(tt.hashes, tt.depth)
+
+			if tt.shouldPanic {
+				t.Errorf("goComputeMerkleRootFromHashes should have panicked")
+				return
+			}
+
+			if !bytes.Equal(result, tt.expected) {
+				t.Errorf("goComputeMerkleRootFromHashes() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestPublicComputeMerkleRoootMaxAccountsConstraint(t *testing.T) {
 	// test that more than 1024 accounts causes a panic
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Expected panic with more than 1024 accounts")
+		} else if msg, ok := r.(string); !ok || msg != MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE {
+			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
 
@@ -360,4 +547,156 @@ func TestBatchConversionFunctions(t *testing.T) {
 			t.Errorf("Second account Balance should remain unchanged")
 		}
 	})
+}
+
+func TestConstructGoBalance(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialValues  []*big.Int
+		expectedLength int
+		expectedValues []*big.Int
+	}{
+		{
+			name:           "No initial values",
+			initialValues:  []*big.Int{},
+			expectedLength: GetNumberOfAssets(),
+			expectedValues: nil, // Will check that all values are zero
+		},
+		{
+			name:           "Partial initial values",
+			initialValues:  []*big.Int{big.NewInt(100), big.NewInt(200), big.NewInt(300)},
+			expectedLength: GetNumberOfAssets(),
+			expectedValues: []*big.Int{big.NewInt(100), big.NewInt(200), big.NewInt(300)},
+		},
+		{
+			name:           "Exact number of assets",
+			initialValues:  make([]*big.Int, GetNumberOfAssets()),
+			expectedLength: GetNumberOfAssets(),
+			expectedValues: nil, // Will check that all values match inputs
+		},
+	}
+
+	// Initialize the third test case with incrementing values
+	if len(tests[2].initialValues) > 0 {
+		for i := range tests[2].initialValues {
+			tests[2].initialValues[i] = big.NewInt(int64(i+1) * 100)
+		}
+		tests[2].expectedValues = tests[2].initialValues
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConstructGoBalance(tt.initialValues...)
+
+			// Check length matches expected
+			if len(result) != tt.expectedLength {
+				t.Errorf("ConstructGoBalance() length = %v, want %v", len(result), tt.expectedLength)
+			}
+
+			// Check values match expected
+			if tt.expectedValues != nil {
+				// Check specified values
+				for i, val := range tt.expectedValues {
+					if result[i].Cmp(val) != 0 {
+						t.Errorf("ConstructGoBalance() value at index %d = %v, want %v", i, result[i], val)
+					}
+				}
+
+				// Check remaining values are zero
+				for i := len(tt.expectedValues); i < len(result); i++ {
+					if result[i].Cmp(big.NewInt(0)) != 0 {
+						t.Errorf("ConstructGoBalance() value at index %d should be zero, got %v", i, result[i])
+					}
+				}
+			} else {
+				// Check all values are zero when no expected values are provided
+				for i, val := range result {
+					if i < len(tt.initialValues) {
+						// Should match input value
+						if val.Cmp(tt.initialValues[i]) != 0 {
+							t.Errorf("ConstructGoBalance() value at index %d = %v, want %v", i, val, tt.initialValues[i])
+						}
+					} else {
+						// Should be zero
+						if val.Cmp(big.NewInt(0)) != 0 {
+							t.Errorf("ConstructGoBalance() value at index %d should be zero, got %v", i, val)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestGoConvertBalanceToBytes(t *testing.T) {
+	tests := []struct {
+		name         string
+		goBalance    GoBalance
+		shouldPanic  bool
+		panicMessage string
+		expectedLen  int
+	}{
+		{
+			name:         "Valid balance",
+			goBalance:    ConstructGoBalance(big.NewInt(100), big.NewInt(200)), // Constructs with correct length
+			shouldPanic:  false,
+			panicMessage: "",
+			expectedLen:  GetNumberOfAssets() * ModBytes, // Each asset gets padded to ModBytes
+		},
+		{
+			name:         "Incorrect balance length",
+			goBalance:    GoBalance{big.NewInt(100), big.NewInt(200)}, // Only 2 values, not matching GetNumberOfAssets()
+			shouldPanic:  true,
+			panicMessage: INVALID_BALANCE_LENGTH_MESSAGE,
+			expectedLen:  0, // Not relevant due to panic
+		},
+		{
+			name: "All zero values",
+			goBalance: func() GoBalance {
+				return ConstructGoBalance()
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+			expectedLen:  GetNumberOfAssets() * ModBytes,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					r := recover()
+					if r == nil {
+						t.Errorf("goConvertBalanceToBytes should have panicked")
+					} else if msg, ok := r.(string); !ok || msg != tt.panicMessage {
+						t.Errorf("Expected panic with message '%v', got: %v", tt.panicMessage, r)
+					}
+				}()
+			}
+
+			result := goConvertBalanceToBytes(tt.goBalance)
+
+			if tt.shouldPanic {
+				t.Errorf("goConvertBalanceToBytes should have panicked")
+				return
+			}
+
+			// Check the length of the resulting byte slice
+			if len(result) != tt.expectedLen {
+				t.Errorf("goConvertBalanceToBytes() output length = %v, want %v", len(result), tt.expectedLen)
+			}
+
+			// Check content - each asset's bytes should be in the result
+			offset := 0
+			for _, asset := range tt.goBalance {
+				paddedBytes := padToModBytes(asset)
+				assetBytes := result[offset : offset+ModBytes]
+
+				if !bytes.Equal(paddedBytes, assetBytes) {
+					t.Errorf("Asset bytes at offset %d do not match expected padded bytes", offset)
+				}
+				offset += ModBytes
+			}
+		})
+	}
 }

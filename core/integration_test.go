@@ -23,6 +23,9 @@ func TestMain(m *testing.M) {
 	os.MkdirAll("out/public", 0755)
 	os.MkdirAll("out/user", 0755)
 
+	// create testutildata directory
+	os.MkdirAll("testutildata", 0o755)
+
 	// Generate test data with 5 batches of 16 accounts each
 	GenerateData(batchCount, countPerBatch)
 

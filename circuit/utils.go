@@ -4,22 +4,26 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"strconv"
 	"strings"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	mimcCrypto "github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 )
+
+type Hash = []byte
 
 // ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
-// array storing symbols for cryptocurrencies (essentially mapping indices to cryptocurrencies)
+// AssetSymbols is an array storing symbols for cryptocurrencies (i.e. mapping indices to cryptocurrencies)
 var AssetSymbols = []string{"ALGO", "ARBETH", "AVAXC", "AVAXP", "BTC", "BCH", "ADA", "CSPR", "TIA",
 	"COREUM", "ATOM", "DASH", "DOGE", "EOS", "ETH", "ETC", "HBAR", "LTC", "NEAR",
 	"OSMO", "DOT", "POLYGON", "SEI", "SOL", "STX", "XLM", "SUI", "TRX", "XRP",
 	"ZEC", "ZETA", "BLD", "BSC", "TON", "COREDAO", "BERA", "TAO", "APT", "XDC", "WEMIX"}
 
-// Have these getter functions incase we decide to get asset symbols from a different source in the future
+// Getter function to interact with AssetSymbols array
+// (created in case we retrieve AssetSymbols from different source in future)
 func GetNumberOfAssets() int {
 	return len(AssetSymbols)
 }
@@ -39,31 +43,29 @@ type GoAccount struct {
 	Balance GoBalance
 }
 
+// RawGoAccount represents an account read from file (with a string UserId). It can be converted to
+// GoAccount (to manipulate here) through ConvertRawGoAccountToAccount.
 type RawGoAccount struct {
 	UserId  string
 	Balance GoBalance
 }
 
-// padToModBytes pads the input value to ModBytes length. If the value is negative, it sign-extends the value.
+// padToModBytes returns the bytes of the input value padded to ModBytes length
 func padToModBytes(num *big.Int) (paddedValue []byte) {
-	value := num.Bytes()
-	isNegative := num.Sign() < 0
-	paddedValue = make([]byte, ModBytes-len(value))
-
 	// If the value is negative, it will fail the circuit range check (since the sign extended version
-	// will be greater than 64 bytes, which is an overflow). So we simple panic here.
-	if isNegative {
+	// will be greater than 128 bytes, which is an overflow). So we simply panic here.
+	if num.Sign() < 0 {
 		panic("negative value cannot be used in the circuit")
 	}
 
-	paddedValue = append(paddedValue, value...)
-	return paddedValue
+	value := num.Bytes()
+	return append(make([]byte, ModBytes-len(value)), value...)
 }
 
-// goConvertBalanceToBytes converts a GoBalance to bytes in the same way as the circuit does.
+// goConvertBalanceToBytes converts a GoBalance to bytes.
 func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 	if len(balance) != GetNumberOfAssets() {
-		panic("balance must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 
 	value = make([]byte, 0)
@@ -75,59 +77,74 @@ func goConvertBalanceToBytes(balance GoBalance) (value []byte) {
 
 // GoComputeMiMCHashForAccount computes the MiMC hash of the account's balance and user ID
 // and returns a consistent result with hashAccount in the circuit.
-func GoComputeMiMCHashForAccount(account GoAccount) []byte {
-	hasher := mimcCrypto.NewMiMC()
+func GoComputeMiMCHashForAccount(account GoAccount) Hash {
+	hasher := mimc.NewMiMC()
+
+	// hash balances
 	_, err := hasher.Write(goConvertBalanceToBytes(account.Balance))
 	if err != nil {
-		panic(err)
+		panic("Error writing GoBalance bytes to hasher: " + err.Error())
 	}
 	balanceHash := hasher.Sum(nil)
+
+	// add userId to hasher
 	hasher.Reset()
 	_, err = hasher.Write(account.UserId)
 	if err != nil {
-		panic(err)
+		panic("Error writing UserId to hasher: " + err.Error())
 	}
+
+	// add balanceHash to hasher and return full hash
 	_, err = hasher.Write(balanceHash)
+	if err != nil {
+		panic("Error writing GoBalance hash to hasher: " + err.Error())
+	}
 	return hasher.Sum(nil)
 }
 
-// GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
-// It returns a consistent result with computeMerkleRootFromAccounts in the circuit.
-func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash []byte) {
-	hashes := make([]Hash, len(accounts))
+// GoComputeMiMCHashesForAccounts computes the MiMC hash of each account in accounts and returns
+// them in a slice.
+func GoComputeMiMCHashesForAccounts(accounts []GoAccount) (hashes []Hash) {
+	hashes = make([]Hash, len(accounts))
 	for i, account := range accounts {
 		hashes[i] = GoComputeMiMCHashForAccount(account)
 	}
-	return GoComputeMerkleRootFromHashes(hashes)
+	return hashes
 }
 
-type Hash = []byte
-
-// GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes.
-func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
-	if len(hashes) > 1024 {
-		panic("number of hashes exceeds the maximum number of leaves in the Merkle tree")
+// goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
+// given a particular TreeDepth.
+func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
+	// preliminary checks
+	if treeDepth < 0 {
+		panic("tree depth must be greater than 0")
+	}
+	if len(hashes) > powOfTwo(treeDepth) {
+		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
-	hasher := mimcCrypto.NewMiMC()
-	nodes := make([][]byte, PowOfTwo(TreeDepth))
-	for i := 0; i < PowOfTwo(TreeDepth); i++ {
+	// store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
+	nodes := make([]Hash, powOfTwo(treeDepth))
+	for i := 0; i < powOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
 			nodes[i] = padToModBytes(big.NewInt(0))
 		}
 	}
-	for i := TreeDepth - 1; i >= 0; i-- {
-		for j := 0; j < PowOfTwo(i); j++ {
+
+	// iteratively calculate hashes of parent nodes from bottom level to root
+	hasher := mimc.NewMiMC()
+	for i := treeDepth - 1; i >= 0; i-- {
+		for j := 0; j < powOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[j*2])
 			if err != nil {
-				panic(err)
+				panic("Error writing node " + strconv.Itoa(j*2) + " to hasher: " + err.Error())
 			}
 			_, err = hasher.Write(nodes[j*2+1])
 			if err != nil {
-				panic(err)
+				panic("Error writing node " + strconv.Itoa(j*2+1) + " to hasher: " + err.Error())
 			}
 			nodes[j] = hasher.Sum(nil)
 		}
@@ -135,10 +152,22 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash []byte) {
 	return nodes[0]
 }
 
+// GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
+// assuming Merkle Tree of depth TreeDepth.
+func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
+	return goComputeMerkleRootFromHashes(hashes, TreeDepth)
+}
+
+// GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
+// It returns a consistent result with computeMerkleRootFromAccounts in the circuit.
+func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash Hash) {
+	return GoComputeMerkleRootFromHashes(GoComputeMiMCHashesForAccounts(accounts))
+}
+
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	if len(goBalance) != GetNumberOfAssets() {
-		panic("balance must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 
 	balance := make(Balance, GetNumberOfAssets())
@@ -164,9 +193,10 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
-// Convert raw userId base36 string to a []byte properly (by first interpreting as a number)
-// in this way, the GoAccount.UserId should not exceed BN254 curve limit as long as the string
-// is less than 49 characters in length
+// Convert raw UserID string to a []byte by removing any hyphens, interpreting it as
+// a base36 number, and then converting that number to a []byte. If this is used to
+// get the GoAccount.UserId, the userId should not exceed BN254 curve limit as long
+// as the string is less than 49 characters in length.
 func convertRawUserIdToBytes(userId string) []byte {
 	// remove any hyphens from user id
 	cleanedUserId := strings.ReplaceAll(userId, "-", "")
@@ -175,7 +205,7 @@ func convertRawUserIdToBytes(userId string) []byte {
 	n := new(big.Int)
 	_, ok := n.SetString(cleanedUserId, 36)
 	if !ok {
-		panic("Failed to convert userId to big.Int from base36: " + cleanedUserId)
+		panic("failed to convert userId to big.Int from base36: " + cleanedUserId)
 	}
 	return n.Bytes()
 }
@@ -212,17 +242,26 @@ func ConvertGoAccountsToRawGoAccounts(accounts []GoAccount) []RawGoAccount {
 	return rawAccounts
 }
 
+// Util to construct GoBalance.
+func ConstructGoBalance(initialBalances ...*big.Int) GoBalance {
+	balances := make(GoBalance, GetNumberOfAssets())
+	for i := range balances {
+		if i < len(initialBalances) {
+			balances[i] = initialBalances[i]
+		} else {
+			balances[i] = big.NewInt(0)
+		}
+	}
+	return balances
+}
+
 // SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
 // This panic is because any circuit that is passed negative balances will violate constraints.
 func SumGoAccountBalances(accounts []GoAccount) GoBalance {
-	assetSum := make(GoBalance, GetNumberOfAssets())
-	for i := range assetSum {
-		assetSum[i] = big.NewInt(0)
-	}
-
+	assetSum := ConstructGoBalance()
 	for _, account := range accounts {
 		if len(account.Balance) != GetNumberOfAssets() {
-			panic("balance must have the same length as assets")
+			panic(INVALID_BALANCE_LENGTH_MESSAGE)
 		}
 		for i, asset := range account.Balance {
 			if asset.Sign() == -1 {
@@ -236,7 +275,7 @@ func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 
 // GenerateTestData generates test data for a given number of accounts with a seed based on the account index.
 // Each account gets a random user ID.
-func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot []byte, merkleRootWithAssetSumHash []byte) {
+func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBalance, merkleRoot Hash, merkleRootWithAssetSumHash Hash) {
 
 	// initialize random number generator with seed
 	source := rand.NewSource(int64(seed))
@@ -254,27 +293,17 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 
 		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
 	}
+
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
 	merkleRoot = GoComputeMerkleRootFromAccounts(accounts)
 	merkleRootWithAssetSumHash = GoComputeMiMCHashForAccount(GoAccount{UserId: merkleRoot, Balance: goAccountBalanceSum})
 	return accounts, goAccountBalanceSum, merkleRoot, merkleRootWithAssetSumHash
 }
 
-func ConstructGoBalance(initialBalances ...*big.Int) GoBalance {
-	balances := make(GoBalance, GetNumberOfAssets())
-	for i := range balances {
-		if i < len(initialBalances) {
-			balances[i] = initialBalances[i]
-		} else {
-			balances[i] = big.NewInt(0)
-		}
-	}
-	return balances
-}
-
+// Check if GoBalance equal to other.
 func (GoBalance *GoBalance) Equals(other GoBalance) bool {
 	if len(*GoBalance) != len(other) || len(*GoBalance) != GetNumberOfAssets() {
-		panic("balance must have the same length as assets")
+		panic(INVALID_BALANCE_LENGTH_MESSAGE)
 	}
 
 	for i := range *GoBalance {
