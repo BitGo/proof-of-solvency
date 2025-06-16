@@ -164,6 +164,53 @@ func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash Hash) {
 	return GoComputeMerkleRootFromHashes(GoComputeMiMCHashesForAccounts(accounts))
 }
 
+func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
+	// preliminary checks
+	if treeDepth < 0 {
+		panic("tree depth must be greater than 0")
+	}
+	if len(hashes) > powOfTwo(treeDepth) {
+		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
+	}
+
+	// create [][]Hash to store all internal nodes
+	// nodes[i] will represent the hashes of all the nodes at depth i
+	nodes := make([][]Hash, treeDepth+1)
+
+	// at bottom layer, store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
+	nodes[0] = make([]Hash, powOfTwo(treeDepth))
+	for i := 0; i < powOfTwo(treeDepth); i++ {
+		if i < len(hashes) {
+			nodes[treeDepth][i] = hashes[i]
+		} else {
+			nodes[treeDepth][i] = padToModBytes(big.NewInt(0))
+		}
+	}
+
+	// iteratively calculate hashes of parent nodes from bottom level to root
+	hasher := mimc.NewMiMC()
+	for i := treeDepth - 1; i >= 0; i-- {
+		nodes[i] = make([]Hash, powOfTwo(i))
+		for j := 0; j < powOfTwo(i); j++ {
+			hasher.Reset()
+			_, err := hasher.Write(nodes[i+1][j*2])
+			if err != nil {
+				panic("Error writing node " + strconv.Itoa(j*2) + " to hasher: " + err.Error())
+			}
+			_, err = hasher.Write(nodes[i+1][j*2+1])
+			if err != nil {
+				panic("Error writing node " + strconv.Itoa(j*2+1) + " to hasher: " + err.Error())
+			}
+			nodes[i][j] = hasher.Sum(nil)
+		}
+	}
+	return nodes
+}
+
+func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
+	return goComputeMerkleTreenodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
+}
+
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	if len(goBalance) != GetNumberOfAssets() {
