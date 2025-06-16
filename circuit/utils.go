@@ -211,6 +211,35 @@ func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
 	return goComputeMerkleTreenodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
 }
 
+// ComputeMerklePath computes the MerklePath of a hash at a particular bottom level position in a group
+// of merkle nodes for a merkle tree.
+func ComputeMerklePath(position int, nodes [][]Hash) []Hash {
+	treeDepth := len(nodes) - 1
+	if position < 0 || position >= powOfTwo(treeDepth) {
+		panic("position is out of bounds - should be in range 0 to " + strconv.Itoa(powOfTwo(treeDepth)-1) + " inclusive")
+	}
+
+	path := make([]Hash, treeDepth)
+	currPos := position
+	for i := treeDepth; i > 0; i-- {
+		if len(nodes[i]) != powOfTwo(i) {
+			panic("merkle nodes provided are not of correct structure - there should be " + strconv.Itoa(powOfTwo(i)) + " nodes in layer " + strconv.Itoa(i))
+		}
+
+		// get the sibling of the node at index currPos in the current layer (if even, sibling right after, else right before)
+		if currPos%2 == 0 {
+			path = append(path, nodes[i][currPos+1])
+		} else {
+			path = append(path, nodes[i][currPos-1])
+		}
+
+		// set currPos to index of parent node in layer above (floor divide by 2)
+		currPos <<= 2
+	}
+
+	return path
+}
+
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
 func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 	if len(goBalance) != GetNumberOfAssets() {
