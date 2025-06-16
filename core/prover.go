@@ -14,7 +14,7 @@ import (
 )
 
 // AccountLeaf is a []byte alias for readability.
-type AccountLeaf = []byte
+type Hash = circuit.Hash
 
 // PartialProof contains the results of compiling and setting up a circuit.
 type PartialProof struct {
@@ -41,15 +41,20 @@ type RawProofElements struct {
 	MerkleRootWithAssetSumHash []byte
 }
 
-// CompletedProof is an output of the prover. It contains the proof and public data. It can be published.
+// CompletedProof is an output of the prover. It contains the proof, public data, and (optionally) the full list of merkle nodes (hashes).
+// It can be published if it meets the following criteria:
+//  1. If this is a top level proof, the AssetSum & MerklPath are set to nil; otherwise both are defined.
+//  2. The MerkleNode field has been set to nil (we don't want to publish all the hashes).
 type CompletedProof struct {
 	Proof                      string
 	VK                         string
-	AccountLeaves              []AccountLeaf
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
-	// AssetSum is optional.
-	AssetSum *circuit.GoBalance
+
+	// MerklePath, MerkleNodes, AssetSum are optional, depending on the case.
+	MerklePath  []Hash
+	MerkleNodes [][]Hash
+	AssetSum    *circuit.GoBalance
 }
 
 // cachedProofs means that we do not need to recompile the same Circuit repeatedly.
@@ -133,14 +138,14 @@ func generateProof(elements ProofElements) CompletedProof {
 		panic("Failed to read verification key bytes from proof: " + err.Error())
 	}
 
-	// construct and return completed proof
+	// construct and return completed proof (do not init MerklePath as we don't know the upper level proof)
 	return CompletedProof{
 		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
 		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
-		AccountLeaves:              circuit.GoComputeMiMCHashesForAccounts(elements.Accounts),
 		MerkleRoot:                 elements.MerkleRoot,
-		AssetSum:                   elements.AssetSum,
 		MerkleRootWithAssetSumHash: elements.MerkleRootWithAssetSumHash,
+		MerkleNodes:                circuit.GoComputeMerkleTreeNodesFromAccounts(elements.Accounts),
+		AssetSum:                   elements.AssetSum,
 	}
 }
 
@@ -170,24 +175,42 @@ func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum boo
 // generateNextLevelProofs generates the next level proofs by calling generateProof and treating the lower level
 // proofs as accounts, with MerkleRoot as UserId and AssetSum as Balance.
 func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof {
-	var nextLevelProofElements ProofElements
-	nextLevelProofElements.Accounts = make([]circuit.GoAccount, len(currentLevelProof))
 
+	// properly make accounts for next level proof using currentLevelProofs
+	nextLevelProofAccounts := make([]circuit.GoAccount, len(currentLevelProof))
 	for i := 0; i < len(currentLevelProof); i++ {
 		if currentLevelProof[i].AssetSum == nil {
 			panic("AssetSum is nil")
 		}
 		// convert lower level proof to GoAccount struct
-		nextLevelProofElements.Accounts[i] = circuit.GoAccount{UserId: currentLevelProof[i].MerkleRoot, Balance: *currentLevelProof[i].AssetSum}
-		if !bytes.Equal(currentLevelProof[i].MerkleRootWithAssetSumHash, circuit.GoComputeMiMCHashForAccount(nextLevelProofElements.Accounts[i])) {
+		nextLevelProofAccounts[i] = circuit.GoAccount{UserId: currentLevelProof[i].MerkleRoot, Balance: *currentLevelProof[i].AssetSum}
+		if !bytes.Equal(currentLevelProof[i].MerkleRootWithAssetSumHash, circuit.GoComputeMiMCHashForAccount(nextLevelProofAccounts[i])) {
 			panic("Merkle root with asset sum hash does not match")
 		}
 	}
-	nextLevelProofElements.MerkleRoot = circuit.GoComputeMerkleRootFromAccounts(nextLevelProofElements.Accounts)
-	assetSum := circuit.SumGoAccountBalances(nextLevelProofElements.Accounts)
-	nextLevelProofElements.AssetSum = &assetSum
-	nextLevelProofElements.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: nextLevelProofElements.MerkleRoot, Balance: *nextLevelProofElements.AssetSum})
-	return generateProof(nextLevelProofElements)
+
+	// create next level proof
+	assetSum := circuit.SumGoAccountBalances(nextLevelProofAccounts)
+	merkleRoot := circuit.GoComputeMerkleRootFromAccounts(nextLevelProofAccounts)
+	return generateProof(ProofElements{
+		Accounts:                   nextLevelProofAccounts,
+		MerkleRoot:                 merkleRoot,
+		AssetSum:                   &assetSum,
+		MerkleRootWithAssetSumHash: circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: merkleRoot, Balance: assetSum}),
+	})
+}
+
+// setLowerLevelProofsMerklePaths sets the MerklePath for each lower level proof given corresponding
+// upper level proofs. Updates contents of lowerLevelProofs directly so nothing is returned.
+func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLevelProofs []CompletedProof) {
+	for i := range lowerLevelProofs {
+		upperLevelProofIndex := i / 1024
+		if upperLevelProofIndex >= len(upperLevelProofs) {
+			panic("not enough upperLevelProofs given for lowerLevelProofs")
+		}
+
+		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(i%1024, upperLevelProofs[upperLevelProofIndex].MerkleNodes)
+	}
 }
 
 // main proof generation function
@@ -195,17 +218,24 @@ func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof Co
 	// bottom level proofs
 	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
 	bottomLevelProofs = generateProofs(proofElements)
-	writeProofsToFiles(bottomLevelProofs, "out/public/test_proof_", false)
 
 	// mid level proofs
 	midLevelProofs := make([]CompletedProof, 0)
 	for _, batch := range batchProofs(bottomLevelProofs, 1024) {
 		midLevelProofs = append(midLevelProofs, generateNextLevelProofs(batch))
 	}
-	writeProofsToFiles(midLevelProofs, "out/public/test_mid_level_proof_", false)
 
 	// top level proof
 	topLevelProof = generateNextLevelProofs(midLevelProofs)
+
+	// set merkle paths of bottom and midlevel proofs
+	setLowerLevelProofsMerklePaths(bottomLevelProofs, midLevelProofs)
+	setLowerLevelProofsMerklePaths(midLevelProofs, []CompletedProof{topLevelProof})
+
+	// write all the proofs to files
+	writeProofsToFiles(bottomLevelProofs, "out/public/test_proof_", false)
+	writeProofsToFiles(midLevelProofs, "out/public/test_mid_level_proof_", false)
 	writeProofsToFiles([]CompletedProof{topLevelProof}, "out/public/test_top_level_proof_", true)
+
 	return bottomLevelProofs, topLevelProof
 }
