@@ -13,6 +13,9 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
+// AccountLeaf is a []byte alias for readability.
+type AccountLeaf = []byte
+
 // PartialProof contains the results of compiling and setting up a circuit.
 type PartialProof struct {
 	pk groth16.ProvingKey
@@ -20,24 +23,58 @@ type PartialProof struct {
 	cs constraint.ConstraintSystem
 }
 
+// ProofElements is an input to the prover. It contains sensitive data and should not be published.
+type ProofElements struct {
+	Accounts []circuit.GoAccount
+	// AssetSum is not optional, but marshalling fails if it is not a pointer.
+	AssetSum                   *circuit.GoBalance
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+}
+
+// RawProofElements is contains all the same items as ProofElements, except the accounts are RawGoAccounts
+// should be used when writing to a json file or reading directly from a json file
+type RawProofElements struct {
+	Accounts                   []circuit.RawGoAccount
+	AssetSum                   *circuit.GoBalance
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+}
+
+// CompletedProof is an output of the prover. It contains the proof and public data. It can be published.
+type CompletedProof struct {
+	Proof                      string
+	VK                         string
+	AccountLeaves              []AccountLeaf
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+	// AssetSum is optional.
+	AssetSum *circuit.GoBalance
+}
+
 // cachedProofs means that we do not need to recompile the same Circuit repeatedly.
 var cachedProofs = make(map[int]PartialProof)
 
+// generateProof for single batch of accounts
 func generateProof(elements ProofElements) CompletedProof {
+	// preliminary checks
 	if elements.AssetSum == nil {
 		panic("AssetSum is nil")
-	}
-	if elements.MerkleRoot == nil {
-		elements.MerkleRoot = circuit.GoComputeMerkleRootFromAccounts(elements.Accounts)
-	}
-	if elements.MerkleRootWithAssetSumHash == nil {
-		elements.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: elements.MerkleRoot, Balance: *elements.AssetSum})
 	}
 	actualBalances := circuit.SumGoAccountBalances(elements.Accounts)
 	if !actualBalances.Equals(*elements.AssetSum) {
 		panic("Asset sum does not match")
 	}
 
+	// set merkle roots if non-existent
+	if elements.MerkleRoot == nil {
+		elements.MerkleRoot = circuit.GoComputeMerkleRootFromAccounts(elements.Accounts)
+	}
+	if elements.MerkleRootWithAssetSumHash == nil {
+		elements.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: elements.MerkleRoot, Balance: *elements.AssetSum})
+	}
+
+	// check if compiled proof cached already for this length of accounts
 	proofLen := len(elements.Accounts)
 	if _, ok := cachedProofs[proofLen]; !ok {
 		var err error
@@ -45,73 +82,69 @@ func generateProof(elements ProofElements) CompletedProof {
 		// create a circuit with empty accounts and all-zero asset sum
 		emptyAccounts := make([]circuit.Account, proofLen)
 		for i := range emptyAccounts {
-			zeroBalances := make([]frontend.Variable, circuit.GetNumberOfAssets())
-			for j := range zeroBalances {
-				zeroBalances[j] = frontend.Variable(0)
-			}
-			emptyAccounts[i].Balance = zeroBalances
+			emptyAccounts[i].Balance = circuit.ConstructBalance()
 		}
-		emptySum := make(circuit.Balance, circuit.GetNumberOfAssets())
-		for i := range emptySum {
-			emptySum[i] = frontend.Variable(0)
-		}
-
 		c := &circuit.Circuit{
 			Accounts: emptyAccounts,
-			AssetSum: emptySum,
+			AssetSum: circuit.ConstructBalance(),
 		}
+
+		// compile, set up, and cache partial proof
 		cachedProof := PartialProof{}
 		cachedProof.cs, err = frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, c)
 		if err != nil {
-			panic(err)
+			panic("Circuit failed to compile: " + err.Error())
 		}
 		cachedProof.pk, cachedProof.vk, err = groth16.Setup(cachedProof.cs)
 		if err != nil {
-			panic(err)
+			panic("Failed to setup circuit: " + err.Error())
 		}
 		cachedProofs[proofLen] = cachedProof
 	}
-	cachedProof := cachedProofs[proofLen]
-	var witnessInput circuit.Circuit
-	witnessInput.Accounts = circuit.ConvertGoAccountsToAccounts(elements.Accounts)
-	witnessInput.MerkleRoot = elements.MerkleRoot
-	if elements.AssetSum == nil {
-		panic("AssetSum is nil")
+
+	// create witness using proof elements
+	witnessInput := circuit.Circuit{
+		Accounts:                   circuit.ConvertGoAccountsToAccounts(elements.Accounts),
+		AssetSum:                   circuit.ConvertGoBalanceToBalance(*elements.AssetSum),
+		MerkleRoot:                 elements.MerkleRoot,
+		MerkleRootWithAssetSumHash: elements.MerkleRootWithAssetSumHash,
 	}
-	witnessInput.AssetSum = circuit.ConvertGoBalanceToBalance(*elements.AssetSum)
-	witnessInput.MerkleRootWithAssetSumHash = elements.MerkleRootWithAssetSumHash
 	witness, err := frontend.NewWitness(&witnessInput, ecc.BN254.ScalarField())
 	if err != nil {
-		panic(err)
+		panic("Failed to create witness: " + err.Error())
 	}
+
+	// use cached partial proof to create a proof that witness satisfies constraints
+	cachedProof := cachedProofs[proofLen]
 	proof, err := groth16.Prove(cachedProof.cs, cachedProof.pk, witness)
 	if err != nil {
-		panic(err)
+		panic("Failed to prove witness satisfies constraints: " + err.Error())
 	}
 
-	var completedProof CompletedProof
-	b1 := bytes.Buffer{}
-	_, err = proof.WriteTo(&b1)
+	// read proof and verification key from proof
+	proofBytes := bytes.Buffer{}
+	_, err = proof.WriteTo(&proofBytes)
 	if err != nil {
-		panic(err)
+		panic("Failed to read proof bytes from proof: " + err.Error())
 	}
-	completedProof.Proof = base64.StdEncoding.EncodeToString(b1.Bytes())
-	b2 := bytes.Buffer{}
-	_, err = cachedProof.vk.WriteTo(&b2)
+	vkBytes := bytes.Buffer{}
+	_, err = cachedProof.vk.WriteTo(&vkBytes)
 	if err != nil {
-		panic(err)
+		panic("Failed to read verification key bytes from proof: " + err.Error())
 	}
-	completedProof.VK = base64.StdEncoding.EncodeToString(b2.Bytes())
-	completedProof.AccountLeaves = computeAccountLeavesFromAccounts(elements.Accounts)
-	completedProof.MerkleRoot = circuit.GoComputeMerkleRootFromAccounts(elements.Accounts)
-	if elements.AssetSum == nil {
-		panic("AssetSum is nil")
+
+	// construct and return completed proof
+	return CompletedProof{
+		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
+		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
+		AccountLeaves:              circuit.GoComputeMiMCHashesForAccounts(elements.Accounts),
+		MerkleRoot:                 elements.MerkleRoot,
+		AssetSum:                   elements.AssetSum,
+		MerkleRootWithAssetSumHash: elements.MerkleRootWithAssetSumHash,
 	}
-	completedProof.AssetSum = elements.AssetSum
-	completedProof.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: completedProof.MerkleRoot, Balance: *elements.AssetSum})
-	return completedProof
 }
 
+// generate proofs for multiple batches
 func generateProofs(proofElements []ProofElements) []CompletedProof {
 	completedProofs := make([]CompletedProof, len(proofElements))
 	for i := 0; i < len(proofElements); i++ {
@@ -130,10 +163,7 @@ func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum boo
 			proof.AssetSum = nil
 		}
 		filePath := prefix + strconv.Itoa(i) + ".json"
-		err := writeJson(filePath, proof)
-		if err != nil {
-			panic(err)
-		}
+		WriteDataToFile(filePath, proof)
 	}
 }
 
@@ -160,6 +190,7 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 	return generateProof(nextLevelProofElements)
 }
 
+// main proof generation function
 func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof CompletedProof) {
 	// bottom level proofs
 	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
