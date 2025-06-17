@@ -9,6 +9,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/hash"
 )
 
 type Hash = []byte
@@ -110,6 +111,19 @@ func GoComputeMiMCHashesForAccounts(accounts []GoAccount) (hashes []Hash) {
 		hashes[i] = GoComputeMiMCHashForAccount(account)
 	}
 	return hashes
+}
+
+func GoComputeHashOfTwoNodes(hasher hash.StateStorer, node1, node2 Hash, label1, label2 string) (Hash, error) {
+	hasher.Reset()
+	_, err := hasher.Write(node1)
+	if err != nil {
+		return nil, fmt.Errorf("error writing %s to hasher: %w", label1, err)
+	}
+	_, err = hasher.Write(node2)
+	if err != nil {
+		return nil, fmt.Errorf("error writing %s to hasher: %w", label2, err)
+	}
+	return hasher.Sum(nil), nil
 }
 
 // goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
