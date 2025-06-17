@@ -119,13 +119,13 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	if treeDepth < 0 {
 		panic("tree depth must be greater than 0")
 	}
-	if len(hashes) > powOfTwo(treeDepth) {
+	if len(hashes) > PowOfTwo(treeDepth) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
 	// store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
-	nodes := make([]Hash, powOfTwo(treeDepth))
-	for i := 0; i < powOfTwo(treeDepth); i++ {
+	nodes := make([]Hash, PowOfTwo(treeDepth))
+	for i := 0; i < PowOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
@@ -136,7 +136,7 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	// iteratively calculate hashes of parent nodes from bottom level to root
 	hasher := mimc.NewMiMC()
 	for i := treeDepth - 1; i >= 0; i-- {
-		for j := 0; j < powOfTwo(i); j++ {
+		for j := 0; j < PowOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[j*2])
 			if err != nil {
@@ -169,7 +169,7 @@ func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 	if treeDepth < 0 {
 		panic("tree depth must be greater than 0")
 	}
-	if len(hashes) > powOfTwo(treeDepth) {
+	if len(hashes) > PowOfTwo(treeDepth) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
@@ -178,8 +178,8 @@ func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 	nodes := make([][]Hash, treeDepth+1)
 
 	// at bottom layer, store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
-	nodes[0] = make([]Hash, powOfTwo(treeDepth))
-	for i := 0; i < powOfTwo(treeDepth); i++ {
+	nodes[0] = make([]Hash, PowOfTwo(treeDepth))
+	for i := 0; i < PowOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[treeDepth][i] = hashes[i]
 		} else {
@@ -190,8 +190,8 @@ func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 	// iteratively calculate hashes of parent nodes from bottom level to root
 	hasher := mimc.NewMiMC()
 	for i := treeDepth - 1; i >= 0; i-- {
-		nodes[i] = make([]Hash, powOfTwo(i))
-		for j := 0; j < powOfTwo(i); j++ {
+		nodes[i] = make([]Hash, PowOfTwo(i))
+		for j := 0; j < PowOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[i+1][j*2])
 			if err != nil {
@@ -215,15 +215,15 @@ func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
 // of merkle nodes for a merkle tree.
 func ComputeMerklePath(position int, nodes [][]Hash) []Hash {
 	treeDepth := len(nodes) - 1
-	if position < 0 || position >= powOfTwo(treeDepth) {
-		panic("position is out of bounds - should be in range 0 to " + strconv.Itoa(powOfTwo(treeDepth)-1) + " inclusive")
+	if position < 0 || position >= PowOfTwo(treeDepth) {
+		panic("position is out of bounds - should be in range 0 to " + strconv.Itoa(PowOfTwo(treeDepth)-1) + " inclusive")
 	}
 
 	path := make([]Hash, treeDepth)
 	currPos := position
 	for i := treeDepth; i > 0; i-- {
-		if len(nodes[i]) != powOfTwo(i) {
-			panic("merkle nodes provided are not of correct structure - there should be " + strconv.Itoa(powOfTwo(i)) + " nodes in layer " + strconv.Itoa(i))
+		if len(nodes[i]) != PowOfTwo(i) {
+			panic("merkle nodes provided are not of correct structure - there should be " + strconv.Itoa(PowOfTwo(i)) + " nodes in layer " + strconv.Itoa(i))
 		}
 
 		// get the sibling of the node at index currPos in the current layer (if even, sibling right after, else right before)
