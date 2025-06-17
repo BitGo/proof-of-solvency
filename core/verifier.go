@@ -8,14 +8,12 @@ import (
 
 	"bitgo.com/proof_of_reserves/circuit"
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 )
 
-// verifyProof performs 2 actions:
-// 1) It verifies that the proof is valid.
-// 2) It verifies that the account leaves hash to the merkle root.
-// Returns nil if verification passes, error if it fails
+// verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
 func verifyProof(proof CompletedProof) error {
 	// first, verify snark
 	// create the public witness
@@ -55,10 +53,61 @@ func verifyProof(proof CompletedProof) error {
 		return fmt.Errorf("Proof verification failed: %v", err)
 	}
 
-	// next, verify the account leaves hash to the merkle root
-	if !bytes.Equal(circuit.GoComputeMerkleRootFromHashes(proof.AccountLeaves), proof.MerkleRoot) {
-		return fmt.Errorf("Account leaves do not hash to the merkle root")
+	return nil
+}
+
+// verifyMerklePath verifies that a particular hash and merkle path lead to the given merkle root
+func verifyMerklePath(hash Hash, path []Hash, root Hash) error {
+	hasher := mimc.NewMiMC()
+	curr := hash
+	var err error
+	for i, sibling := range path {
+		depth := strconv.Itoa(len(path) - i)
+		curr, err = circuit.GoComputeHashOfTwoNodes(hasher, curr, sibling, "current node at depth "+depth, "sibling node at depth "+depth)
+		if err != nil {
+			return err
+		}
 	}
+	if !bytes.Equal(curr, root) {
+		return fmt.Errorf("merkle proof path verification failed")
+	}
+	return nil
+}
+
+// verifyBuild verifies that the given merkle nodes are indeed part of the merkle tree with the given root.
+// assumes depth of tree is len(nodes) - 1.
+func verifyBuild(nodes [][]Hash, root Hash) error {
+	treeDepth := len(nodes) - 1
+	hasher := mimc.NewMiMC()
+
+	// verify correct number of hashes/nodes in bottom layer
+	if len(nodes[treeDepth]) != circuit.PowOfTwo(treeDepth) {
+		return fmt.Errorf("invalid number of nodes for depth %d in the tree: expected %d, found %d", treeDepth, circuit.PowOfTwo(treeDepth), len(nodes[treeDepth]))
+	}
+
+	for i := treeDepth; i >= 1; i-- {
+		// verify enough nodes in parent layer
+		if len(nodes[i-1]) != circuit.PowOfTwo(i-1) {
+			return fmt.Errorf("invalid number of nodes for depth %d in the tree: expected %d, found %d", i-1, circuit.PowOfTwo(i-1), len(nodes[i-1]))
+		}
+
+		// iteratively compute hash with children and compare with parent
+		for j := 0; j < circuit.PowOfTwo(i-1); j++ {
+			curr, err := circuit.GoComputeHashOfTwoNodes(hasher, nodes[i][2*j], nodes[i][2*j+1], fmt.Sprintf("node[%d][%d]", i, 2*j), fmt.Sprintf("node[%d][%d]", i, 2*j+1))
+			if err != nil {
+				return err
+			}
+			if !bytes.Equal(curr, nodes[i-1][j]) {
+				return fmt.Errorf("incorrect hash found at depth %d, position %d", i-1, j)
+			}
+		}
+	}
+
+	// verify roots equal
+	if !bytes.Equal(nodes[0][0], root) {
+		return fmt.Errorf("given root doesn't match root of given merkle nodes")
+	}
+
 	return nil
 }
 
@@ -190,6 +239,7 @@ func VerifyProofPath(accountHash circuit.Hash, bottomLayerProof CompletedProof, 
 // Verify verifies that account is included in one of the bottom level proofs, and that every proof is valid and leads
 // to a higher level proof. Verify uses hardcoded file names to read the proofs from disk.
 func Verify(batchCount int, account circuit.GoAccount) {
+
 	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
 	// the number of mid level proofs is ceil(batchCount / 1024)
 	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+1023)/1024, "out/public/test_mid_level_proof_")
