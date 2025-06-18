@@ -117,22 +117,6 @@ func verifyBuild(nodes [][]Hash, root Hash) error {
 	return nil
 }
 
-// verifyLowerLayerProofsLeadToUpperLayerProof verifies the merkle root of the upperLayerProof was computed
-// from the merkleRootAssetSumHashes of the lowerLayerProofs
-// Returns nil if verification passes, error if it fails
-func verifyLowerLayerProofsLeadToUpperLayerProof(lowerLayerProofs []CompletedProof, upperLayerProof CompletedProof) error {
-	bottomLayerHashes := make([]circuit.Hash, len(lowerLayerProofs))
-	for i, proof := range lowerLayerProofs {
-		bottomLayerHashes[i] = proof.MerkleRootWithAssetSumHash
-	}
-
-	computedRoot := circuit.GoComputeMerkleRootFromHashes(bottomLayerHashes)
-	if !bytes.Equal(computedRoot, upperLayerProof.MerkleRoot) {
-		return fmt.Errorf("Upper layer proof's Merkle root does not match what was computed from lower layer proofs")
-	}
-	return nil
-}
-
 // verifies the MerkleRootAssetSumHash of the top layer proof is indeed the hash of its merkleRoot and assetSum
 // Returns nil if verification passes, error if it fails
 func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
@@ -145,65 +129,6 @@ func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
 		return fmt.Errorf("Top layer proof's MerkleRootWithAssetSumHash does not match the hash computed from MerkleRoot and AssetSum")
 	}
 	return nil
-}
-
-func verifyProofs(bottomLayerProofs []CompletedProof, midLayerProofs []CompletedProof, topLayerProof CompletedProof) {
-	// first, verify the proofs are valid
-	for i, proof := range bottomLayerProofs {
-		if err := verifyProof(proof); err != nil {
-			panic("Bottom layer proof verification failed for proof index " + strconv.Itoa(i) + ": " + err.Error())
-		}
-	}
-	for i, proof := range midLayerProofs {
-		if err := verifyProof(proof); err != nil {
-			panic("Mid layer proof verification failed for proof index " + strconv.Itoa(i) + ": " + err.Error())
-		}
-	}
-	if err := verifyProof(topLayerProof); err != nil {
-		panic("Top layer proof verification failed: " + err.Error())
-	}
-
-	// next, verify that the bottom layer proofs lead to the mid layer proofs
-	bottomLevelProofsBatched := batchProofs(bottomLayerProofs, 1024)
-	if len(bottomLevelProofsBatched) != len(midLayerProofs) {
-		panic("Bottom layer proofs and mid layer proofs count mismatch: " +
-			strconv.Itoa(len(bottomLevelProofsBatched)) + " batches of bottom proofs vs " +
-			strconv.Itoa(len(midLayerProofs)) + " mid-level proofs")
-	}
-	for i, batch := range bottomLevelProofsBatched {
-		if err := verifyLowerLayerProofsLeadToUpperLayerProof(batch, midLayerProofs[i]); err != nil {
-			panic("Bottom layer proof batch " + strconv.Itoa(i) + " does not lead to mid layer proof " + strconv.Itoa(i) + ": " + err.Error())
-		}
-	}
-
-	// finally, verify that the mid layer proofs lead to the top layer proof
-	if err := verifyLowerLayerProofsLeadToUpperLayerProof(midLayerProofs, topLayerProof); err != nil {
-		panic("Mid layer proofs do not lead to top layer proof: " + err.Error())
-	}
-
-	if err := verifyTopLayerProofMatchesAssetSum(topLayerProof); err != nil {
-		panic("Top layer proof hash with asset sum does not match published asset sum: " + err.Error())
-	}
-}
-
-// verifyInclusionInProof verifies that an account with hash accountHash is in one of the proofs provided.
-// Returns nil if the account is found, error if it is not found
-func verifyInclusionInProof(accountHash circuit.Hash, bottomLayerProofs []CompletedProof) error {
-	if len(bottomLayerProofs) == 0 {
-		return fmt.Errorf("No proofs provided to check for account inclusion")
-	}
-
-	for _, proof := range bottomLayerProofs {
-		for _, leaf := range proof.AccountLeaves {
-			if bytes.Equal(leaf, accountHash) {
-				return nil
-			}
-		}
-	}
-
-	// If we get here, the account wasn't found
-	return fmt.Errorf("Account with hash %x not found in any of the %d provided proofs",
-		accountHash, len(bottomLayerProofs))
 }
 
 // VerifyProofPath is the flagship verification method.
