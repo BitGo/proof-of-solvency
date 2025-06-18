@@ -145,3 +145,9 @@ func batchProofs(proofs []CompletedProof, batchSize int) [][]CompletedProof {
 	}
 	return batches
 }
+
+func panicOnError(err error, messagePrefix string) {
+	if err != nil {
+		panic(messagePrefix + ": " + err.Error())
+	}
+}
