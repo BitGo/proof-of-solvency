@@ -178,7 +178,7 @@ func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash Hash) {
 	return GoComputeMerkleRootFromHashes(GoComputeMiMCHashesForAccounts(accounts))
 }
 
-func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
+func goComputeMerkleTreeNodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 	// preliminary checks
 	if treeDepth < 0 {
 		panic("tree depth must be greater than 0")
@@ -192,7 +192,7 @@ func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 	nodes := make([][]Hash, treeDepth+1)
 
 	// at bottom layer, store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
-	nodes[0] = make([]Hash, PowOfTwo(treeDepth))
+	nodes[treeDepth] = make([]Hash, PowOfTwo(treeDepth))
 	for i := 0; i < PowOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[treeDepth][i] = hashes[i]
@@ -222,7 +222,7 @@ func goComputeMerkleTreenodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 }
 
 func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
-	return goComputeMerkleTreenodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
+	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
 }
 
 // ComputeMerklePath computes the MerklePath of a hash at a particular bottom level position in a group
@@ -233,7 +233,7 @@ func ComputeMerklePath(position int, nodes [][]Hash) []Hash {
 		panic("position is out of bounds - should be in range 0 to " + strconv.Itoa(PowOfTwo(treeDepth)-1) + " inclusive")
 	}
 
-	path := make([]Hash, treeDepth)
+	path := make([]Hash, 0, treeDepth)
 	currPos := position
 	for i := treeDepth; i > 0; i-- {
 		if len(nodes[i]) != PowOfTwo(i) {
@@ -248,7 +248,7 @@ func ComputeMerklePath(position int, nodes [][]Hash) []Hash {
 		}
 
 		// set currPos to index of parent node in layer above (floor divide by 2)
-		currPos <<= 2
+		currPos /= 2
 	}
 
 	return path
