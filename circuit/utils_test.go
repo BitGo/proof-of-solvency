@@ -89,19 +89,12 @@ func TestGoComputeMerkleRoot(t *testing.T) {
 		return res
 	}
 
-	const hasherWriteErr = "writing to hasher failed"
-
 	hashTwoNodes := func(hasher hash.StateStorer, hash1, hash2 Hash) Hash {
-		hasher.Reset()
-		_, err := hasher.Write(hash1)
+		hash, err := GoComputeHashOfTwoNodes(hasher, hash1, hash2, "node1", "node2")
 		if err != nil {
-			panic(hasherWriteErr)
+			panic(err)
 		}
-		_, err = hasher.Write(hash2)
-		if err != nil {
-			panic(hasherWriteErr)
-		}
-		return hasher.Sum(nil)
+		return hash
 	}
 
 	// test cases:
@@ -191,7 +184,7 @@ func TestGoComputeMerkleRoot(t *testing.T) {
 	}
 }
 
-func TestPublicComputeMerkleRoootMaxAccountsConstraint(t *testing.T) {
+func TestPublicComputeMerkleRootMaxAccountsConstraint(t *testing.T) {
 	// test that more than 1024 accounts causes a panic
 	defer func() {
 		if r := recover(); r == nil {
@@ -213,6 +206,223 @@ func TestPublicComputeMerkleRoootMaxAccountsConstraint(t *testing.T) {
 	// this should panic
 	GoComputeMerkleRootFromAccounts(accounts)
 }
+
+func TestGoComputeMerkleTreeNodesFromHashes(t *testing.T) {
+	// some helper funcs to construct test cases:
+	constructHashSlice := func(nums ...int64) []Hash {
+		res := make([]Hash, len(nums))
+		for i, num := range nums {
+			res[i] = padToModBytes(big.NewInt(num))
+		}
+		return res
+	}
+
+	hashTwoNodes := func(hasher hash.StateStorer, hash1, hash2 Hash) Hash {
+		hash, err := GoComputeHashOfTwoNodes(hasher, hash1, hash2, "node1", "node2")
+		if err != nil {
+			panic(err)
+		}
+		return hash
+	}
+
+	// test cases:
+	tests := []struct {
+		name         string
+		hashes       []Hash
+		depth        int
+		expected     [][]Hash
+		shouldPanic  bool
+		panicMessage string
+	}{
+		{
+			name:   "single hash",
+			hashes: constructHashSlice(123),
+			depth:  0,
+			expected: func() [][]Hash {
+				return [][]Hash{{padToModBytes(big.NewInt(123))}}
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "full tree of depth 2",
+			hashes: constructHashSlice(123, 345, 567, 789),
+			depth:  2,
+			expected: func() [][]Hash {
+				hasher := mimc.NewMiMC()
+
+				level2 := constructHashSlice(123, 345, 567, 789)
+				level1 := []Hash{hashTwoNodes(hasher, level2[0], level2[1]), hashTwoNodes(hasher, level2[2], level2[3])}
+
+				return [][]Hash{
+					{hashTwoNodes(hasher, level1[0], level1[1])},
+					level1,
+					level2,
+				}
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:   "partial list of hashes, tree depth 2",
+			hashes: constructHashSlice(123, 234),
+			depth:  2,
+			expected: func() [][]Hash {
+				hasher := mimc.NewMiMC()
+
+				level2 := constructHashSlice(123, 234, 0, 0)
+				level1 := []Hash{hashTwoNodes(hasher, level2[0], level2[1]), hashTwoNodes(hasher, level2[2], level2[3])}
+
+				return [][]Hash{
+					{hashTwoNodes(hasher, level1[0], level1[1])},
+					level1,
+					level2,
+				}
+			}(),
+			shouldPanic:  false,
+			panicMessage: "",
+		},
+		{
+			name:         "too many leaves, tree depth 2",
+			hashes:       constructHashSlice(123, 345, 452, 234, 123),
+			depth:        2,
+			expected:     [][]Hash{}, // doesn't matter cause should panic
+			shouldPanic:  true,
+			panicMessage: MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE,
+		},
+		{
+			name:         "invalid (negative) depth",
+			hashes:       constructHashSlice(123),
+			depth:        -1,
+			expected:     [][]Hash{},
+			shouldPanic:  true,
+			panicMessage: "tree depth must be greater than 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("goComputeMerkleRootFromHashes should have panicked.")
+					} else if msg, ok := r.(string); !ok || msg != tt.panicMessage {
+						t.Errorf("expected panic with message '%v', got: %v", tt.panicMessage, r)
+					}
+				}()
+			}
+
+			result := goComputeMerkleTreeNodesFromHashes(tt.hashes, tt.depth)
+
+			if tt.shouldPanic {
+				t.Errorf("goComputeMerkleRootFromHashes should have panicked")
+				return
+			}
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("number of levels mismatch: got %d, want %d", len(result), len(tt.expected))
+				return
+			}
+			for i := range result {
+				if len(result[i]) != len(tt.expected[i]) {
+					t.Errorf("level %d: number of nodes mismatch: got %d, want %d", i, len(result[i]), len(tt.expected[i]))
+					continue
+				}
+				for j := range result[i] {
+					if !bytes.Equal(result[i][j], tt.expected[i][j]) {
+						t.Errorf("mismatch at level %d, node %d: got %v, want %v", i, j, result[i][j], tt.expected[i][j])
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestComputeMerklePath(t *testing.T) {
+	// some helper funcs to construct test cases:
+	constructHashSlice := func(nums ...int64) []Hash {
+		res := make([]Hash, len(nums))
+		for i, num := range nums {
+			res[i] = padToModBytes(big.NewInt(num))
+		}
+		return res
+	}
+
+	// test cases:
+	tests := []struct {
+		name        string
+		position    int
+		nodes       [][]Hash
+		expected    []Hash
+		shouldPanic bool
+	}{
+		{
+			name:        "single node",
+			position:    0,
+			nodes:       [][]Hash{constructHashSlice(123)},
+			expected:    []Hash{},
+			shouldPanic: false,
+		},
+		{
+			name:        "nodes of tree with depth 2",
+			position:    3,
+			nodes:       [][]Hash{constructHashSlice(192), constructHashSlice(532, 582), constructHashSlice(123, 432, 134, 532)},
+			expected:    constructHashSlice(134, 532),
+			shouldPanic: false,
+		},
+		{
+			name:        "positive position out of bounds",
+			position:    2,
+			nodes:       [][]Hash{constructHashSlice(123)},
+			expected:    []Hash{},
+			shouldPanic: true,
+		},
+		{
+			name:        "negative position out of bounds",
+			position:    -1,
+			nodes:       [][]Hash{constructHashSlice(123)},
+			expected:    []Hash{},
+			shouldPanic: true,
+		},
+		{
+			name:        "invalid merkle nodes structure",
+			position:    0,
+			nodes:       [][]Hash{constructHashSlice(123), constructHashSlice(234)},
+			expected:    []Hash{},
+			shouldPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					if r := recover(); r == nil {
+						t.Errorf("ComputeMerklePath should have panicked.")
+					}
+				}()
+			}
+
+			result := ComputeMerklePath(tt.position, tt.nodes)
+
+			if tt.shouldPanic {
+				t.Errorf("ComputeMerklePath should have panicked")
+				return
+			}
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("number of hashes mismatch: got %d, want %d", len(result), len(tt.expected))
+				return
+			}
+			for i := range result {
+				if !bytes.Equal(result[i], tt.expected[i]) {
+					t.Errorf("mismatch at node %d: got %v, want %v", i, result[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
 func TestSumGoAccountBalances(t *testing.T) {
 	tests := []struct {
 		name        string
