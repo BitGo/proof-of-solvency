@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math/big"
 	"testing"
 
 	"bitgo.com/proof_of_reserves/circuit"
@@ -405,6 +406,135 @@ func TestVerifyUser(t *testing.T) {
 			} else {
 				assert.NotPanics(func() {
 					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+				})
+			}
+		})
+	}
+}
+
+func TestVerifyFull(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// first create all valid/invalid material to test with:
+	// create a minimal set of test data
+	validBottomProofs := []CompletedProof{proofLower0, proofLower1}
+	validMidProofs := []CompletedProof{proofMid}
+	validTopProof := proofTop
+	validAccountBatches := [][]circuit.GoAccount{testData0.Accounts, testData1.Accounts}
+
+	// invalid bottom proof
+	invalidBottomProofs := make([]CompletedProof, len(validBottomProofs))
+	copy(invalidBottomProofs, validBottomProofs)
+	invalidBottomProofs[0].MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid mid proof
+	invalidMidProofs := make([]CompletedProof, len(validMidProofs))
+	copy(invalidMidProofs, validMidProofs)
+	invalidMidProofs[0].MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid top proof
+	invalidTopProof := validTopProof
+	invalidTopProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid account batches - wrong order
+	invalidAccountBatches := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidAccountBatches[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		copy(invalidAccountBatches[i], validAccountBatches[i])
+	}
+	if len(invalidAccountBatches[0]) > 1 {
+		// swap first two accounts
+		invalidAccountBatches[0][0], invalidAccountBatches[0][1] = invalidAccountBatches[0][1], invalidAccountBatches[0][0]
+	}
+
+	// too few bottom proofs
+	tooFewBottomProofs := []CompletedProof{proofLower0}
+
+	// too few mid proofs
+	tooFewMidProofs := []CompletedProof{}
+
+	// merkle path of bottom proof messed up
+	bottomProofsWithBadPath := make([]CompletedProof, len(validBottomProofs))
+	copy(bottomProofsWithBadPath, validBottomProofs)
+	badPath := make([]Hash, len(bottomProofsWithBadPath[0].MerklePath))
+	copy(badPath, bottomProofsWithBadPath[0].MerklePath)
+	badPath[0] = []byte{0xde, 0xad, 0xbe, 0xef} // corrupt the path
+	bottomProofsWithBadPath[0].MerklePath = badPath
+
+	// asset sum of top proof different
+	topProofWithBadAssetSum := validTopProof
+	badAssetSum := circuit.ConstructGoBalance()
+	badAssetSum[0].Add(badAssetSum[0], big.NewInt(100)) // change the asset sum
+	topProofWithBadAssetSum.AssetSum = &badAssetSum
+
+	// merkle nodes of bottom proof messed up
+	bottomProofsWithBadNodes := make([]CompletedProof, len(validBottomProofs))
+	copy(bottomProofsWithBadNodes, validBottomProofs)
+	badNodesBottom := make([][]Hash, len(bottomProofsWithBadNodes[0].MerkleNodes))
+	for i := range badNodesBottom {
+		badNodesBottom[i] = make([]Hash, len(bottomProofsWithBadNodes[0].MerkleNodes[i]))
+		copy(badNodesBottom[i], bottomProofsWithBadNodes[0].MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesBottom[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	bottomProofsWithBadNodes[0].MerkleNodes = badNodesBottom
+
+	// merkle nodes of mid proof messed up
+	midProofsWithBadNodes := make([]CompletedProof, len(validMidProofs))
+	copy(midProofsWithBadNodes, validMidProofs)
+	badNodesMid := make([][]Hash, len(midProofsWithBadNodes[0].MerkleNodes))
+	for i := range badNodesMid {
+		badNodesMid[i] = make([]Hash, len(midProofsWithBadNodes[0].MerkleNodes[i]))
+		copy(badNodesMid[i], midProofsWithBadNodes[0].MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesMid[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	midProofsWithBadNodes[0].MerkleNodes = badNodesMid
+
+	// merkle nodes of top proof messed up
+	topProofWithBadNodes := validTopProof
+	badNodesTop := make([][]Hash, len(topProofWithBadNodes.MerkleNodes))
+	for i := range badNodesTop {
+		badNodesTop[i] = make([]Hash, len(topProofWithBadNodes.MerkleNodes[i]))
+		copy(badNodesTop[i], topProofWithBadNodes.MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesTop[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	topProofWithBadNodes.MerkleNodes = badNodesTop
+
+	// test cases
+	tests := []struct {
+		name           string
+		bottomProofs   []CompletedProof
+		midProofs      []CompletedProof
+		topProof       CompletedProof
+		accountBatches [][]circuit.GoAccount
+		shouldPanic    bool
+	}{
+		{"Valid case", validBottomProofs, validMidProofs, validTopProof, validAccountBatches, false},
+		{"Invalid bottom proof", invalidBottomProofs, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Invalid mid proof", validBottomProofs, invalidMidProofs, validTopProof, validAccountBatches, true},
+		{"Invalid top proof", validBottomProofs, validMidProofs, invalidTopProof, validAccountBatches, true},
+		{"Invalid account batches", validBottomProofs, validMidProofs, validTopProof, invalidAccountBatches, true},
+		{"Too few bottom proofs", tooFewBottomProofs, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Too few mid proofs", validBottomProofs, tooFewMidProofs, validTopProof, validAccountBatches, true},
+		{"Mismatched proofs", validBottomProofs, validMidProofs, altProofTop, validAccountBatches, true},
+		{"Bad bottom proof merkle path", bottomProofsWithBadPath, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Bad top proof asset sum", validBottomProofs, validMidProofs, topProofWithBadAssetSum, validAccountBatches, true},
+		{"Bad bottom proof merkle nodes", bottomProofsWithBadNodes, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Bad mid proof merkle nodes", validBottomProofs, midProofsWithBadNodes, validTopProof, validAccountBatches, true},
+		{"Bad top proof merkle nodes", validBottomProofs, validMidProofs, topProofWithBadNodes, validAccountBatches, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				assert.Panics(func() {
+					verifyFull(tt.bottomProofs, tt.midProofs, tt.topProof, tt.accountBatches)
+				})
+			} else {
+				assert.NotPanics(func() {
+					verifyFull(tt.bottomProofs, tt.midProofs, tt.topProof, tt.accountBatches)
 				})
 			}
 		})
