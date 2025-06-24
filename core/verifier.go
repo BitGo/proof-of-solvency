@@ -13,6 +13,12 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+type UserVerificationElements struct {
+	AccountData    circuit.GoAccount
+	MerklePath     []Hash
+	MerklePosition int
+}
+
 // verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
 func verifyProof(proof CompletedProof) error {
 	// first, verify snark
@@ -151,7 +157,10 @@ func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
 // that the bottom layer proof's MerkleRootWithAssetSumHash is included in the mid layer proof's MerkleRoot,
 // and repeat the earlier steps for the mid and top layer proofs.
 // It also verifies that the top layer proof's MerkleRootWithAssetSumHash matches the MerkleRoot and published AssetSum.
-func VerifyUser(accountHash Hash, accountMerklePath []Hash, accountPosition int, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
+func VerifyUser(userInfo UserVerificationElements, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
+	// create hash of account
+	accountHash := circuit.GoComputeMiMCHashForAccount(userInfo.AccountData)
+
 	// verify proofs
 	panicOnError(verifyProof(bottomLayerProof), "bottom layer proof verification failed")
 	panicOnError(verifyProof(midLayerProof), "mid layer proof verification failed")
@@ -159,7 +168,7 @@ func VerifyUser(accountHash Hash, accountMerklePath []Hash, accountPosition int,
 
 	// verify inclusion of account -> bottom proof -> middle proof -> top
 	panicOnError(
-		verifyMerklePath(accountHash, accountPosition, accountMerklePath, bottomLayerProof.MerkleRoot),
+		verifyMerklePath(accountHash, userInfo.MerklePosition, userInfo.MerklePath, bottomLayerProof.MerkleRoot),
 		"failed to verify if account included in bottom proof",
 	)
 	panicOnError(
