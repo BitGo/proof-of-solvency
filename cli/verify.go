@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"bitgo.com/proof_of_reserves/circuit"
-
 	"bitgo.com/proof_of_reserves/core"
 	"github.com/spf13/cobra"
 )
@@ -38,7 +36,7 @@ var userVerifyCmd = &cobra.Command{
 	Use:   "userverify [path/to/useraccount.json] [path/to/bottomlevelproof.json] [path/to/midlevelproof.json] [path/to/toplevelproof.json]",
 	Short: "Verify the provided user account was included in the proofs and the proofs are valid.",
 	Long: "Verifies the provided user account was included in the provided proofs and proofs are valid.\n" +
-		"This is the main verification path by which one can verify they were included in the total liability sum and no negative accounts were included in the sum.\n" +
+		"This is the main verification tool by which one can verify they were included in the total liability sum and no negative accounts were included in the sum.\n" +
 		"Verifies:\n" +
 		"1) The given account was included in the bottom level proof provided\n" +
 		"2) The bottom level proof provided was included in the mid level proof provided\n" +
@@ -50,11 +48,11 @@ var userVerifyCmd = &cobra.Command{
 		"there were no accounts with overflowing balances or negative balances included in any of the asset sums.",
 	Args: cobra.ExactArgs(4),
 	Run: func(cmd *cobra.Command, args []string) {
-		userAccount := core.ReadDataFromFile[circuit.GoAccount](args[0])
+		userVerificationElements := core.ReadDataFromFile[core.UserVerificationElements](args[0])
 		bottomLevelProof := core.ReadDataFromFile[core.CompletedProof](args[1])
 		midLevelProof := core.ReadDataFromFile[core.CompletedProof](args[2])
 		topLevelProof := core.ReadDataFromFile[core.CompletedProof](args[3])
-		core.VerifyUser(circuit.GoComputeMiMCHashForAccount(userAccount), make([]core.Hash, 0), bottomLevelProof, midLevelProof, topLevelProof)
+		core.VerifyUser(userVerificationElements, bottomLevelProof, midLevelProof, topLevelProof)
 		println("User verification succeeded!")
 	},
 }
