@@ -151,7 +151,7 @@ func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
 // that the bottom layer proof's MerkleRootWithAssetSumHash is included in the mid layer proof's MerkleRoot,
 // and repeat the earlier steps for the mid and top layer proofs.
 // It also verifies that the top layer proof's MerkleRootWithAssetSumHash matches the MerkleRoot and published AssetSum.
-func VerifyUser(accountHash Hash, accountMerklePath []Hash, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
+func VerifyUser(accountHash Hash, accountMerklePath []Hash, accountPosition int, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
 	// verify proofs
 	panicOnError(verifyProof(bottomLayerProof), "bottom layer proof verification failed")
 	panicOnError(verifyProof(midLayerProof), "mid layer proof verification failed")
@@ -159,15 +159,15 @@ func VerifyUser(accountHash Hash, accountMerklePath []Hash, bottomLayerProof Com
 
 	// verify inclusion of account -> bottom proof -> middle proof -> top
 	panicOnError(
-		verifyMerklePath(accountHash, accountMerklePath, bottomLayerProof.MerkleRoot),
+		verifyMerklePath(accountHash, accountPosition, accountMerklePath, bottomLayerProof.MerkleRoot),
 		"failed to verify if account included in bottom proof",
 	)
 	panicOnError(
-		verifyMerklePath(bottomLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePath, midLayerProof.MerkleRoot),
+		verifyMerklePath(bottomLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePosition, bottomLayerProof.MerklePath, midLayerProof.MerkleRoot),
 		"failed to verify if account included in bottom proof",
 	)
 	panicOnError(
-		verifyMerklePath(midLayerProof.MerkleRootWithAssetSumHash, midLayerProof.MerklePath, topLayerProof.MerkleRoot),
+		verifyMerklePath(midLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePosition, midLayerProof.MerklePath, topLayerProof.MerkleRoot),
 		"failed to verify if account included in bottom proof",
 	)
 
@@ -191,7 +191,7 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 		panicOnError(verifyProof(bottomProof), fmt.Sprintf("circuit verification failed for bottom level proof %d", i))
 		panicOnError(
-			verifyMerklePath(bottomProof.MerkleRootWithAssetSumHash, bottomProof.MerklePath, midLevelProofs[i/1024].MerkleRoot),
+			verifyMerklePath(bottomProof.MerkleRootWithAssetSumHash, bottomProof.MerklePosition, bottomProof.MerklePath, midLevelProofs[i/1024].MerkleRoot),
 			fmt.Sprintf("merkle path verification failed for bottom level proof %d", i),
 		)
 	}
@@ -204,7 +204,7 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 		panicOnError(verifyProof(middleProof), fmt.Sprintf("circuit verification failed for mid level proof %d", i))
 		panicOnError(
-			verifyMerklePath(middleProof.MerkleRootWithAssetSumHash, middleProof.MerklePath, topLevelProof.MerkleRoot),
+			verifyMerklePath(middleProof.MerkleRootWithAssetSumHash, middleProof.MerklePosition, middleProof.MerklePath, topLevelProof.MerkleRoot),
 			fmt.Sprintf("merkle path verification failed for mid level proof %d", i),
 		)
 	}

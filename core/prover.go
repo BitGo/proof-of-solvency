@@ -43,7 +43,7 @@ type RawProofElements struct {
 
 // CompletedProof is an output of the prover. It contains the proof, public data, and (optionally) the full list of merkle nodes (hashes).
 // It can be published if it meets the following criteria:
-//  1. If this is a top level proof, the AssetSum & MerklPath are set to nil; otherwise both are defined.
+//  1. If this is a top level proof, the AssetSum & MerklePath are set to nil and MerklePosition is 0; otherwise all three are properly defined.
 //  2. The MerkleNode field has been set to nil (we don't want to publish all the hashes).
 type CompletedProof struct {
 	Proof                      string
@@ -51,10 +51,11 @@ type CompletedProof struct {
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
 
-	// MerklePath, MerkleNodes, AssetSum are optional, depending on the case.
-	MerklePath  []Hash
-	MerkleNodes [][]Hash
-	AssetSum    *circuit.GoBalance
+	// MerklePath, MerklePosition, MerkleNodes, AssetSum are optional, depending on the case.
+	MerklePath     []Hash
+	MerklePosition int
+	MerkleNodes    [][]Hash
+	AssetSum       *circuit.GoBalance
 }
 
 // cachedProofs means that we do not need to recompile the same Circuit repeatedly.
@@ -138,7 +139,7 @@ func generateProof(elements ProofElements) CompletedProof {
 		panic("Failed to read verification key bytes from proof: " + err.Error())
 	}
 
-	// construct and return completed proof (do not init MerklePath as we don't know the upper level proof)
+	// construct and return completed proof (do not init MerklePath or MerklePosition as we don't know the upper level proof)
 	return CompletedProof{
 		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
 		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
@@ -200,7 +201,7 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 	})
 }
 
-// setLowerLevelProofsMerklePaths sets the MerklePath for each lower level proof given corresponding
+// setLowerLevelProofsMerklePaths sets the MerklePath and MerklePosition for each lower level proof given corresponding
 // upper level proofs. Updates contents of lowerLevelProofs directly so nothing is returned.
 func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLevelProofs []CompletedProof) {
 	for i := range lowerLevelProofs {
@@ -210,6 +211,7 @@ func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLeve
 		}
 
 		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(i%1024, upperLevelProofs[upperLevelProofIndex].MerkleNodes)
+		lowerLevelProofs[i].MerklePosition = i % 1024
 	}
 }
 
