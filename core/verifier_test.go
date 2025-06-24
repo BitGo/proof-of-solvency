@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"bitgo.com/proof_of_reserves/circuit"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 )
 
 var proofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_proof_0.json")
@@ -146,5 +147,64 @@ func TestVerifyMerklePathFails(t *testing.T) {
 				t.Errorf("expected verifyMerklePath to fail for %s", tt.name)
 			}
 		})
+	}
+}
+
+func TestVerifyBuild(t *testing.T) {
+	// helper
+	hasher := mimc.NewMiMC()
+	hashTwoNodes := func(hash1, hash2 Hash, hash1Message, hash2Message string) Hash {
+		hash, err := circuit.GoComputeHashOfTwoNodes(hasher, hash1, hash2, hash1Message, hash2Message)
+		if err != nil {
+			panic(err)
+		}
+		return hash
+	}
+
+	// create merkle nodes
+	leafNodes := []Hash{{0x12, 0x34}, {0x14, 0x83}, {0x93, 0x39}, {0x82, 0x98}}
+	level1 := []Hash{
+		hashTwoNodes(leafNodes[0], leafNodes[1], "leaf0", "leaf1"),
+		hashTwoNodes(leafNodes[2], leafNodes[3], "leaf2", "leaf3"),
+	}
+	root := hashTwoNodes(level1[0], level1[1], "node0", "node1")
+	nodes := [][]Hash{{root}, level1, leafNodes}
+
+	// test cases
+	tests := []struct {
+		name        string
+		nodes       [][]Hash
+		root        Hash
+		depth       int
+		shouldError bool
+	}{
+		{"valid case", nodes, root, 2, false},
+		{"bad root", nodes, leafNodes[0], 2, true},
+		{"bad node in middle", [][]Hash{{root}, {level1[0], root}, leafNodes}, root, 2, true},
+		{"invalid depth", nodes, root, 4, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := verifyBuild(tt.nodes, tt.root, tt.depth)
+			if tt.shouldError && err == nil {
+				t.Errorf("expected verifyBuild to error for test %s, but it didn't.", tt.name)
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("expected verifyBuild to pass for valid case, got error: %v", err)
+			}
+		})
+	}
+}
+func TestVerifyTopLayerProofMatchesAssetSum(t *testing.T) {
+	// the top layer proof should already have a valid asset sum hash and merkle root
+	if err := verifyTopLayerProofMatchesAssetSum(proofTop); err != nil {
+		t.Errorf("expected verifyTopLayerProofMatchesAssetSum to pass for valid proof, got error: %v", err)
+	}
+
+	// check failure case
+	emptySum := circuit.ConstructGoBalance()
+	if err := verifyTopLayerProofMatchesAssetSum(CompletedProof{MerkleRoot: Hash{0x23, 0x98}, MerkleRootWithAssetSumHash: Hash{0x23, 0x98}, AssetSum: &emptySum}); err == nil {
+		t.Error("expected verifyTopLayerProofMatchesAssetSum to fail for bad proof")
 	}
 }
