@@ -2,6 +2,7 @@ package core
 
 import (
 	"math/big"
+	"os"
 	"testing"
 
 	"bitgo.com/proof_of_reserves/circuit"
@@ -9,19 +10,50 @@ import (
 	"github.com/consensys/gnark/test"
 )
 
-var proofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_proof_0.json")
-var proofLower1 = ReadDataFromFile[CompletedProof]("testdata/test_proof_1.json")
-var proofMid = ReadDataFromFile[CompletedProof]("testdata/test_mid_level_proof_0.json")
-var proofTop = ReadDataFromFile[CompletedProof]("testdata/test_top_level_proof_0.json")
+// testing constants:
+const batchCount = 2
+const countPerBatch = 16
+
+// TestMain sets up the test environment by generating test data and proofs once
+// for all tests to use.
+func TestMain(m *testing.M) {
+	// Clean up output directory before running tests
+	os.RemoveAll("out")
+	os.MkdirAll("out/secret", 0755)
+	os.MkdirAll("out/public", 0755)
+	os.MkdirAll("out/user", 0755)
+
+	// create testutildata directory
+	os.MkdirAll("testutildata", 0o755)
+
+	// Generate test data with batchCount batches of countPerBatch accounts each
+	GenerateData(batchCount, countPerBatch)
+
+	// Generate proofs for the test data
+	Prove(batchCount)
+
+	// We'll use the existing testdata files for alt proofs when needed instead of generating them
+
+	// Run tests
+	exitCode := m.Run()
+
+	// Exit with test status code
+	os.Exit(exitCode)
+}
+
+// Get test proofs and data from the generated files
+var proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
+var proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
+var proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
+var proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
 
 // var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
 // var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
 var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
 
-var testData0 = ReadDataFromFile[ProofElements]("testdata/test_data_0.json")
-var testData1 = ReadDataFromFile[ProofElements]("testdata/test_data_1.json")
-
-// var testAltData0 = ReadDataFromFile[ProofElements]("testdata/test_alt_data_0.json")
+// Test data batches
+var testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
+var testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
 
 func TestVerifyProofPasses(t *testing.T) {
 	// should return nil for valid proofs
