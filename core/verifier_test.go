@@ -5,6 +5,7 @@ import (
 
 	"bitgo.com/proof_of_reserves/circuit"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark/test"
 )
 
 var proofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_proof_0.json")
@@ -206,5 +207,206 @@ func TestVerifyTopLayerProofMatchesAssetSum(t *testing.T) {
 	emptySum := circuit.ConstructGoBalance()
 	if err := verifyTopLayerProofMatchesAssetSum(CompletedProof{MerkleRoot: Hash{0x23, 0x98}, MerkleRootWithAssetSumHash: Hash{0x23, 0x98}, AssetSum: &emptySum}); err == nil {
 		t.Error("expected verifyTopLayerProofMatchesAssetSum to fail for bad proof")
+	}
+}
+
+func TestVerifyUser(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// get account 1 from test data
+	accountPosition := 1
+	account := testData0.Accounts[accountPosition]
+	accountMerklePath := circuit.ComputeMerklePath(accountPosition, proofLower0.MerkleNodes)
+
+	// proof with random merkle nodes
+	bottomProofWithRandomMerkleNodes := proofLower0
+	bottomProofWithRandomMerkleNodes.MerkleNodes = [][]Hash{{{0x23, 0x32}}}
+
+	// invalid proofs
+	invalidBottomProof := proofLower0
+	invalidBottomProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	invalidMidProof := proofMid
+	invalidMidProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	invalidTopProof := proofTop
+	invalidTopProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid proof path - bottom proof not included in mid proof
+	bottomMerklePath := proofLower0.MerklePath
+	invalidBottomMerklePath := make([]circuit.Hash, len(bottomMerklePath))
+	copy(invalidBottomMerklePath, bottomMerklePath)
+	invalidBottomMerklePath[0] = []byte{0x12, 0x34, 0x56, 0x78}
+
+	proofLower0WithBadPath := proofLower0
+	proofLower0WithBadPath.MerklePath = invalidBottomMerklePath
+
+	// Test cases
+	tests := []struct {
+		name                     string
+		userVerificationElements UserVerificationElements
+		bottomLayerProof         CompletedProof
+		midLayerProof            CompletedProof
+		topLayerProof            CompletedProof
+		shouldPanic              bool
+	}{
+		{
+			"Valid case",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			false,
+		},
+		{
+			"Valid case with random merkle nodes",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			bottomProofWithRandomMerkleNodes,
+			proofMid,
+			proofTop,
+			false,
+		},
+		{
+			"Invalid account data",
+			UserVerificationElements{
+				AccountData:    circuit.GoAccount{UserId: []byte{0x23}},
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid account merkle path",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid account merkle position",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
+				MerklePosition: accountPosition - 1,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid bottom proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			invalidBottomProof,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid mid proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			invalidMidProof,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid top proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			invalidTopProof,
+			true,
+		},
+		{
+			"Invalid bottom merkle path",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0WithBadPath,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 1",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			altProofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 2",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofMid,
+			proofLower0,
+			proofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 3",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower1,
+			proofMid,
+			proofTop,
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				assert.Panics(func() {
+					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+				})
+			} else {
+				assert.NotPanics(func() {
+					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+				})
+			}
+		})
 	}
 }
