@@ -91,26 +91,33 @@ func readJson(filePath string, data interface{}) error {
 	return decoder.Decode(data)
 }
 
-func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount](filePath string) D {
+func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | UserVerificationElements](filePath string) D {
 	var data D
 
-	// if reading GoAccount or ProofElements, first read as the corresponding raw data interface
-	// then convert to the actual interface
+	// if reading GoAccount, ProofElements, or UserVerificationElements, first read as the corresponding
+	// raw data interface, then convert to the actual interface
 	switch any(data).(type) {
 	case circuit.GoAccount:
 		var rawData circuit.RawGoAccount
-		err := readJson(filePath, &rawData)
-		if err != nil {
-			panic("Error reading raw go account from file: " + err.Error())
-		}
+		panicOnError(readJson(filePath, &rawData), "error reading raw go account from file")
 		return any(circuit.ConvertRawGoAccountToGoAccount(rawData)).(D)
 	case ProofElements:
 		var rawProofElements RawProofElements
-		err := readJson(filePath, &rawProofElements)
-		if err != nil {
-			panic("Error reading raw proof elements from file: " + err.Error())
-		}
+		panicOnError(readJson(filePath, &rawProofElements), "error reading raw proof elements from file")
 		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
+	case UserVerificationElements:
+		var rawUserElements struct {
+			AccountData    circuit.RawGoAccount
+			MerklePath     []Hash
+			MerklePosition int
+		}
+		panicOnError(readJson(filePath, &rawUserElements), "error reading raw user verification elements from file")
+		actualUserElements := UserVerificationElements{
+			AccountData:    circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountData),
+			MerklePath:     rawUserElements.MerklePath,
+			MerklePosition: rawUserElements.MerklePosition,
+		}
+		return any(actualUserElements).(D)
 	default:
 		err := readJson(filePath, &data)
 		if err != nil {
