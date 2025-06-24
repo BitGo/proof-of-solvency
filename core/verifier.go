@@ -57,19 +57,33 @@ func verifyProof(proof CompletedProof) error {
 }
 
 // verifyMerklePath verifies that a particular hash and merkle path lead to the given merkle root
-func verifyMerklePath(hash Hash, path []Hash, root Hash) error {
+func verifyMerklePath(hash Hash, hashPosition int, path []Hash, root Hash) error {
 	if len(path) != circuit.TreeDepth {
 		return fmt.Errorf("merkle path is not of depth of tree: expected length %d, found %d", circuit.TreeDepth, len(path))
 	}
+	if hashPosition < 0 || hashPosition >= circuit.PowOfTwo(circuit.TreeDepth) {
+		return fmt.Errorf("hashPosition out of bounds")
+	}
+
 	hasher := mimc.NewMiMC()
 	curr := hash
+	currPos := hashPosition
 	var err error
 	for i, sibling := range path {
 		depth := strconv.Itoa(len(path) - i)
+
+		// if currPos odd, should hash sibling first, so swap them
+		if currPos%2 == 1 {
+			curr, sibling = sibling, curr
+		}
 		curr, err = circuit.GoComputeHashOfTwoNodes(hasher, curr, sibling, "current node at depth "+depth, "sibling node at depth "+depth)
+
 		if err != nil {
 			return err
 		}
+
+		// update currPos to be the index of the parent of curr and sibling
+		currPos /= 2
 	}
 	if !bytes.Equal(curr, root) {
 		return fmt.Errorf("merkle proof path verification failed")
