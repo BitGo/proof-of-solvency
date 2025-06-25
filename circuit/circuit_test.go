@@ -151,9 +151,9 @@ func TestPowOfTwo(t *testing.T) {
 		{10, 1024},
 	}
 	for _, tc := range tests {
-		result := powOfTwo(tc.input)
+		result := PowOfTwo(tc.input)
 		if result != tc.expected {
-			t.Errorf("powOfTwo(%d) = %d; expected %d", tc.input, result, tc.expected)
+			t.Errorf("PowOfTwo(%d) = %d; expected %d", tc.input, result, tc.expected)
 		}
 	}
 }
@@ -212,7 +212,7 @@ func TestCircuitPanicsWhenTooManyAccounts(t *testing.T) {
 			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
-	tooMany := powOfTwo(TreeDepth) + 1
+	tooMany := PowOfTwo(TreeDepth) + 1
 	accounts := make([]Account, tooMany)
 	for i := range accounts {
 		accounts[i].Balance = ConstructBalance()

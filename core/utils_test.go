@@ -334,7 +334,8 @@ func TestReadDataFromFile(t *testing.T) {
 		original := CompletedProof{
 			Proof:                      "AAAA",
 			VK:                         "BBBB",
-			AccountLeaves:              []AccountLeaf{[]byte{1, 2, 3, 4}, []byte{5, 6, 7, 8}},
+			MerklePath:                 []Hash{{1, 2, 3, 4}, {5, 6, 7, 8}},
+			MerkleNodes:                [][]Hash{{{1, 2, 3, 4}, {5, 6, 7, 8}}},
 			MerkleRoot:                 []byte{10, 11, 12, 13},
 			MerkleRootWithAssetSumHash: []byte{20, 21, 22, 23},
 			AssetSum:                   createTestProofElements().AssetSum,
@@ -353,15 +354,20 @@ func TestReadDataFromFile(t *testing.T) {
 			t.Errorf("Proof or VK not read correctly")
 		}
 
-		// Verify AccountLeaves
-		if len(result.AccountLeaves) != 2 {
-			t.Errorf("Expected 2 account leaves, got %d", len(result.AccountLeaves))
+		// Verify MerklePath
+		if len(result.MerklePath) != 2 {
+			t.Errorf("Expected 2 in MerklePath, got %d", len(result.MerklePath))
 		}
 
-		// Verify first AccountLeaf
-		expectedLeaf1 := []byte{1, 2, 3, 4}
-		if !bytes.Equal(result.AccountLeaves[0], expectedLeaf1) {
-			t.Errorf("First AccountLeaf not read correctly")
+		// Verify first MerklePath hash
+		expectedHash1 := Hash{1, 2, 3, 4}
+		if !bytes.Equal(result.MerklePath[0], expectedHash1) {
+			t.Errorf("First MerklePath hash not read correctly")
+		}
+
+		// Verify MerkleNodes
+		if len(result.MerkleNodes) != 1 {
+			t.Errorf("Expected 1 level in MerkleNodes, got %d", len(result.MerkleNodes))
 		}
 
 		// Verify MerkleRoot and MerkleRootWithAssetSumHash
@@ -414,7 +420,8 @@ func TestReadDataFromFiles(t *testing.T) {
 	proof1 := CompletedProof{
 		Proof:                      "TestProof1",
 		VK:                         "TestVK1",
-		AccountLeaves:              []AccountLeaf{[]byte{1, 2, 3}},
+		MerklePath:                 []Hash{{1, 2, 3}},
+		MerkleNodes:                [][]Hash{{{1, 2, 3}}},
 		MerkleRoot:                 []byte{10, 11, 12},
 		MerkleRootWithAssetSumHash: []byte{20, 21, 22},
 	}
@@ -422,7 +429,8 @@ func TestReadDataFromFiles(t *testing.T) {
 	proof2 := CompletedProof{
 		Proof:                      "TestProof2",
 		VK:                         "TestVK2",
-		AccountLeaves:              []AccountLeaf{[]byte{4, 5, 6}},
+		MerklePath:                 []Hash{{4, 5, 6}},
+		MerkleNodes:                [][]Hash{{{4, 5, 6}}},
 		MerkleRoot:                 []byte{13, 14, 15},
 		MerkleRootWithAssetSumHash: []byte{23, 24, 25},
 	}
@@ -523,7 +531,8 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 		original := CompletedProof{
 			Proof:                      "TestProof",
 			VK:                         "TestVK",
-			AccountLeaves:              []AccountLeaf{[]byte{1, 2, 3}, []byte{4, 5, 6}},
+			MerklePath:                 []Hash{{1, 2, 3}, {4, 5, 6}},
+			MerkleNodes:                [][]Hash{{{1, 2, 3}, {4, 5, 6}}},
 			MerkleRoot:                 []byte{10, 11, 12},
 			MerkleRootWithAssetSumHash: []byte{20, 21, 22},
 			AssetSum:                   createTestProofElements().AssetSum,
@@ -542,15 +551,20 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 			t.Errorf("Proof or VK doesn't match after round-trip")
 		}
 
-		// Verify AccountLeaves match
-		if len(result.AccountLeaves) != len(original.AccountLeaves) {
-			t.Errorf("AccountLeaves length doesn't match after round-trip")
+		// Verify MerklePath match
+		if len(result.MerklePath) != len(original.MerklePath) {
+			t.Errorf("MerklePath length doesn't match after round-trip")
 		} else {
-			for i, originalLeaf := range original.AccountLeaves {
-				if !bytes.Equal(result.AccountLeaves[i], originalLeaf) {
-					t.Errorf("AccountLeaf #%d doesn't match after round-trip", i)
+			for i, originalPath := range original.MerklePath {
+				if !bytes.Equal(result.MerklePath[i], originalPath) {
+					t.Errorf("MerklePath #%d doesn't match after round-trip", i)
 				}
 			}
+		}
+
+		// Verify MerkleNodes match
+		if len(result.MerkleNodes) != len(original.MerkleNodes) {
+			t.Errorf("MerkleNodes length doesn't match after round-trip") 
 		}
 
 		// Verify MerkleRoot and MerkleRootWithAssetSumHash

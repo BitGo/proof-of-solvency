@@ -1,299 +1,660 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
-	"strings"
+	"os"
 	"testing"
 
 	"bitgo.com/proof_of_reserves/circuit"
+	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark/test"
 )
 
-var proofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_proof_0.json")
-var proofLower1 = ReadDataFromFile[CompletedProof]("testdata/test_proof_1.json")
-var proofMid = ReadDataFromFile[CompletedProof]("testdata/test_mid_level_proof_0.json")
-var proofTop = ReadDataFromFile[CompletedProof]("testdata/test_top_level_proof_0.json")
+// testing constants:
+const batchCount = 2
+const countPerBatch = 16
 
-var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
-var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
+var proofLower0, proofLower1, proofMid, proofTop CompletedProof
+var testData0, testData1 ProofElements
+
+// TestMain sets up the test environment by generating test data and proofs once
+// for all tests to use.
+func TestMain(m *testing.M) {
+	// clean up output directory before running tests
+	os.RemoveAll("out")
+	os.MkdirAll("out/secret", 0755)
+	os.MkdirAll("out/public", 0755)
+	os.MkdirAll("out/user", 0755)
+
+	// create testutildata directory
+	os.MkdirAll("testutildata", 0o755)
+
+	// generate test data with batchCount batches of countPerBatch accounts each
+	GenerateData(batchCount, countPerBatch)
+
+	// generate proofs for the test data
+	Prove(batchCount)
+
+	// read generated proofs and test data files
+	proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
+	proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
+	proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
+	proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
+	testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
+	testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
+
+	// run tests
+	exitCode := m.Run()
+
+	// exit with test status code
+	os.Exit(exitCode)
+}
+
+// var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
+// var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
 var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
 
-func TestVerifyInclusionInProof(t *testing.T) {
-	accountHash := []byte{0x12, 0x34}
-	proof := CompletedProof{AccountLeaves: []AccountLeaf{accountHash}}
-
-	// finds when first item
-	if err := verifyInclusionInProof(accountHash, []CompletedProof{proof}); err != nil {
-		t.Errorf("Expected account to be found in proof, but got error: %v", err)
+func TestVerifyProofPasses(t *testing.T) {
+	// should return nil for valid proofs
+	if err := verifyProof(proofLower0); err != nil {
+		t.Errorf("expected verifyProof to return nil for valid lower proof 0, got error: %v", err)
+	}
+	if err := verifyProof(proofLower1); err != nil {
+		t.Errorf("expected verifyProof to return nil for valid lower proof 1, got error: %v", err)
+	}
+	if err := verifyProof(proofMid); err != nil {
+		t.Errorf("expected verifyProof to return nil for valid mid proof, got error: %v", err)
+	}
+	if err := verifyProof(proofTop); err != nil {
+		t.Errorf("expected verifyProof to return nil for valid top proof, got error: %v", err)
 	}
 
-	// finds in not first item
-	proofs := make([]CompletedProof, 100)
-	proofs[99] = proof
-	if err := verifyInclusionInProof(accountHash, proofs); err != nil {
-		t.Errorf("Expected account to be found in proof at index 99, but got error: %v", err)
-	}
-
-	// does not find in empty proofs
-	proofs = make([]CompletedProof, 0)
-	if err := verifyInclusionInProof(accountHash, proofs); err == nil {
-		t.Errorf("Expected error for empty proofs, but got nil")
-	} else {
-		expectedErrMsg := "No proofs provided to check for account inclusion"
-		if err.Error() != expectedErrMsg {
-			t.Errorf("Expected error message '%s', got: '%s'", expectedErrMsg, err.Error())
-		}
-	}
-
-	// does not find in non-empty proofs
-	proofs = make([]CompletedProof, 100)
-	proofs[0] = CompletedProof{AccountLeaves: []AccountLeaf{[]byte{0x56, 0x78}}}
-	if err := verifyInclusionInProof(accountHash, proofs); err == nil {
-		t.Errorf("Expected error when account not found in proofs, but got nil")
-	} else {
-		expectedErrPrefix := "Account with hash "
-		if !strings.Contains(err.Error(), expectedErrPrefix) {
-			t.Errorf("Expected error to contain '%s', got: '%s'", expectedErrPrefix, err.Error())
-		}
+	// also check with random merkle nodes (should pass)
+	proofLowerModifiedMerkleNodes := proofLower0
+	proofLowerModifiedMerkleNodes.MerkleNodes = [][]Hash{{{0x56, 0x78}}}
+	if err := verifyProof(proofLowerModifiedMerkleNodes); err != nil {
+		t.Errorf("expected verifyProof to return nil for valid lower proof 0 with random merkle nodes, got error: %v", err)
 	}
 }
 
 func TestVerifyProofFails(t *testing.T) {
-	proof := CompletedProof{
+	// invalid proof data
+	invalidProof := CompletedProof{
 		Proof:                      "dummy",
 		VK:                         "stuff",
-		AccountLeaves:              []AccountLeaf{{0x12, 0x34}},
 		MerkleRoot:                 []byte{0x56, 0x78},
 		MerkleRootWithAssetSumHash: []byte{0x9a, 0xbc},
 	}
+
+	// modified merkle root
 	proofLowerModifiedMerkleRoot := proofLower0
-	proofLowerModifiedMerkleRoot.MerkleRoot = []byte{0x56, 0x78}
+	proofLowerModifiedMerkleRoot.MerkleRoot = proofLower1.MerkleRoot
 
+	// modified merkle root with asset sum hash
 	proofLowerModifiedMerkleRootAssetSumHash := proofLower0
-	proofLowerModifiedMerkleRootAssetSumHash.MerkleRootWithAssetSumHash = []byte{0x56, 0x78}
+	proofLowerModifiedMerkleRootAssetSumHash.MerkleRootWithAssetSumHash = proofLower1.MerkleRootWithAssetSumHash
 
-	// Should return error for invalid proofs
-	if err := verifyProof(proof); err == nil {
-		t.Errorf("Expected verifyProof to return error for invalid proof")
+	// modified verification key
+	proofLowerModifiedVK := proofLower0
+	proofLowerModifiedVK.VK = "invalidVKdataThatWillFail"
+
+	// modifying the proof string itself
+	modifiedProof := proofLower0
+	modifiedProof.Proof = "AAAA" + modifiedProof.Proof[4:]
+
+	// test cases
+	tests := []struct {
+		name  string
+		proof CompletedProof
+	}{
+		{"Invalid proof data", invalidProof},
+		{"Invalid merkle root", proofLowerModifiedMerkleRoot},
+		{"Invalid merkle root with asset sum hash", proofLowerModifiedMerkleRootAssetSumHash},
+		{"Invalid verification key", proofLowerModifiedVK},
+		{"Modified proof string", modifiedProof},
 	}
-	if err := verifyProof(proofLowerModifiedMerkleRoot); err == nil {
-		t.Errorf("Expected verifyProof to return error when merkle root is invalid")
-	}
-	if err := verifyProof(proofLowerModifiedMerkleRootAssetSumHash); err == nil {
-		t.Errorf("Expected verifyProof to return error when merkle root with asset sum hash is invalid")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := verifyProof(tt.proof); err == nil {
+				t.Errorf("expected verifyProof to return error for %s", tt.name)
+			}
+		})
 	}
 }
 
-func TestVerifyProofPasses(t *testing.T) {
-	// Should return nil for valid proofs
-	if err := verifyProof(proofLower0); err != nil {
-		t.Errorf("Expected verifyProof to return nil for valid lower proof 0, got error: %v", err)
-	}
-	if err := verifyProof(proofLower1); err != nil {
-		t.Errorf("Expected verifyProof to return nil for valid lower proof 1, got error: %v", err)
-	}
-	if err := verifyProof(proofMid); err != nil {
-		t.Errorf("Expected verifyProof to return nil for valid mid proof, got error: %v", err)
-	}
-	if err := verifyProof(proofTop); err != nil {
-		t.Errorf("Expected verifyProof to return nil for valid top proof, got error: %v", err)
-	}
-}
+func TestVerifyMerklePathPasses(t *testing.T) {
+	// generate valid merkle tree and valid paths for all accounts
+	accounts := testData0.Accounts
+	merkleNodes := circuit.GoComputeMerkleTreeNodesFromAccounts(accounts)
+	merkleRoot := merkleNodes[0][0]
 
-func TestVerifyProofsFailsWhenIncomplete(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	assert.Panics(func() { verifyProofs([]CompletedProof{proofLower0}, []CompletedProof{proofMid}, proofTop) }, "should panic when proofs are incomplete")
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, CompletedProof{})
-	}, "should panic when proofs are incomplete")
-}
-
-func TestVerifyProofsFailsWhenTopLevelAssetSumMismatch(t *testing.T) {
-	assert := test.NewAssert(t)
-	incorrectProofTop := proofTop
-	incorrectProofTop.AssetSum = nil
-
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, incorrectProofTop)
-	}, "should panic when asset sum is nil")
-
-	assetSum := make(circuit.GoBalance, circuit.GetNumberOfAssets())
-	assetSum[0] = big.NewInt(1)
-	assetSum[1] = big.NewInt(1)
-	incorrectProofTop.AssetSum = &assetSum
-
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, incorrectProofTop)
-	}, "should panic when asset sum is wrong")
-}
-
-func TestVerifyProofsFailsWhenBottomLayerProofsMismatch(t *testing.T) {
-	assert := test.NewAssert(t)
-	incorrectProofMid := proofMid
-	incorrectProofMid.MerkleRoot = []byte{0x56, 0x78}
-
-	// we want to correct the top proof so we ensure that it's the mid proof check that fails
-	correctedProofTop := proofTop
-	correctedProofTop.MerkleRoot = circuit.GoComputeMerkleRootFromHashes([]circuit.Hash{proofMid.MerkleRootWithAssetSumHash})
-	assert.NotPanics(func() {
-		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, correctedProofTop)
-	})
-
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{incorrectProofMid}, correctedProofTop)
-	}, "should panic when mid layer proof is incorrect")
-}
-
-func TestVerifyProofsPasses(t *testing.T) {
-	verifyProofs([]CompletedProof{proofLower0, proofLower1}, []CompletedProof{proofMid}, proofTop)
-}
-
-func TestVerifyProofPath(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	// Valid proofs pass
-	VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, proofTop)
-	VerifyProofPath(proofLower1.AccountLeaves[len(proofLower1.AccountLeaves)-1], proofLower1, proofMid, proofTop)
-	VerifyProofPath(altProofLower0.AccountLeaves[0], altProofLower0, altProofMid, altProofTop)
-
-	// Test with invalid proofs
-	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower1, proofMid, proofTop) }, "should panic when account is not included")
-	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, CompletedProof{}) }, "should panic when proofs are incomplete")
-
-	incorrectProofTop := proofTop
-
-	assetSum := make(circuit.GoBalance, circuit.GetNumberOfAssets())
-	assetSum[0] = big.NewInt(123)
-	assetSum[1] = big.NewInt(456)
-	incorrectProofTop.AssetSum = &assetSum
-	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, incorrectProofTop) }, "should panic when asset sum is incorrect")
-	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, proofMid, altProofTop) }, "should panic when mid proof does not link to top proof")
-	assert.Panics(func() { VerifyProofPath(proofLower0.AccountLeaves[0], proofLower0, altProofMid, proofTop) }, "should panic when bottom proof does not link to mid proof")
-}
-
-func TestVerifyProofWithMalformedData(t *testing.T) {
-	// Test with nil AccountLeaves
-	proofWithNilLeaves := proofLower0
-	proofWithNilLeaves.AccountLeaves = nil
-	if err := verifyProof(proofWithNilLeaves); err == nil {
-		t.Errorf("Expected error when AccountLeaves is nil")
-	} else {
-		// Verify the error message
-		expectedErrMsg := "Account leaves do not hash to the merkle root"
-		if err.Error() != expectedErrMsg {
-			t.Errorf("Expected error message '%s', got: '%s'", expectedErrMsg, err.Error())
+	// make sure passes
+	for i := range testData0.Accounts {
+		accountHash := circuit.GoComputeMiMCHashForAccount(accounts[i])
+		accountPath := circuit.ComputeMerklePath(i, merkleNodes)
+		if err := verifyMerklePath(accountHash, i, accountPath, merkleRoot); err != nil {
+			t.Errorf("expected verifyMerklePath to return nil for valid path for account %d, got error: %v", i, err)
 		}
 	}
 
-	// Test with empty AccountLeaves
-	proofWithEmptyLeaves := proofLower0
-	proofWithEmptyLeaves.AccountLeaves = []AccountLeaf{}
-	if err := verifyProof(proofWithEmptyLeaves); err == nil {
-		t.Errorf("Expected error when AccountLeaves is empty")
+}
+
+func TestVerifyMerklePathFails(t *testing.T) {
+	// generate a valid merkle tree and path to start with
+	accounts := testData0.Accounts
+	merkleNodes := circuit.GoComputeMerkleTreeNodesFromAccounts(accounts)
+	accountHash := circuit.GoComputeMiMCHashForAccount(accounts[0])
+	accountPath := circuit.ComputeMerklePath(0, merkleNodes)
+	merkleRoot := merkleNodes[0][0]
+
+	// generate an invalid hash
+	invalidHash := []byte{0x12, 0x34, 0x56, 0x78}
+
+	// generate invalid paths
+	invalidPathTooShort := accountPath[:len(accountPath)-1] // Missing last element
+	invalidPathTooLong := append(append([]circuit.Hash{}, accountPath...), circuit.Hash{0x12, 0x34})
+	invalidPathRandom := append(append([]circuit.Hash{}, accountPath[:3]...), append([]circuit.Hash{{0x21, 0x22}}, accountPath[4:]...)...)
+
+	// Generate invalid root
+	invalidRoot := []byte{0x90, 0xab, 0xcd, 0xef}
+
+	tests := []struct {
+		name     string
+		hash     circuit.Hash
+		position int
+		path     []circuit.Hash
+		root     circuit.Hash
+	}{
+		{"Invalid hash", invalidHash, 0, accountPath, merkleRoot},
+		{"Path too short", accountHash, 0, invalidPathTooShort, merkleRoot},
+		{"Path too long", accountHash, 0, invalidPathTooLong, merkleRoot},
+		{"Path messed up in middle", accountHash, 0, invalidPathRandom, merkleRoot},
+		{"Invalid root", accountHash, 0, accountPath, invalidRoot},
+		{"Wrong position", accountHash, 1, accountPath, invalidRoot},
 	}
 
-	// Test with nil MerkleRoot
-	proofWithNilMerkleRoot := proofLower0
-	proofWithNilMerkleRoot.MerkleRoot = nil
-	if err := verifyProof(proofWithNilMerkleRoot); err == nil {
-		t.Errorf("Expected error when MerkleRoot is nil")
-	}
-
-	// Test with nil MerkleRootWithAssetSumHash
-	proofWithNilMerkleRootWithAssetSumHash := proofLower0
-	proofWithNilMerkleRootWithAssetSumHash.MerkleRootWithAssetSumHash = nil
-	if err := verifyProof(proofWithNilMerkleRootWithAssetSumHash); err == nil {
-		t.Errorf("Expected error when MerkleRootWithAssetSumHash is nil")
-	}
-
-	// Test with corrupted Proof encoding
-	proofWithCorruptedProof := proofLower0
-	proofWithCorruptedProof.Proof = "notvalidbase64@"
-	if err := verifyProof(proofWithCorruptedProof); err == nil {
-		t.Errorf("Expected error when Proof has invalid encoding")
-	} else {
-		if !strings.Contains(err.Error(), "Error decoding proof") {
-			t.Errorf("Expected error to contain 'Error decoding proof', got: %s", err.Error())
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := verifyMerklePath(tt.hash, tt.position, tt.path, tt.root); err == nil {
+				t.Errorf("expected verifyMerklePath to fail for %s", tt.name)
+			}
+		})
 	}
 }
 
-func TestDataTamperingDetection(t *testing.T) {
-	// Test bit-flip in merkle root
-	tamperedProof := proofLower0
-	if len(tamperedProof.MerkleRoot) > 0 {
-		// Flip a single bit in the merkle root
-		tamperedProof.MerkleRoot[0] ^= 0x01
-	}
-
-	if err := verifyProof(tamperedProof); err == nil {
-		t.Errorf("Expected error for tampered merkle root")
-	}
-
-	// Test swapping AccountLeaves between proofs
-	if len(proofLower0.AccountLeaves) > 0 && len(proofLower1.AccountLeaves) > 0 {
-		tamperedProof0 := proofLower0
-		tamperedProof1 := proofLower1
-
-		// Swap first account leaves
-		tmp := tamperedProof0.AccountLeaves[0]
-		tamperedProof0.AccountLeaves[0] = tamperedProof1.AccountLeaves[0]
-		tamperedProof1.AccountLeaves[0] = tmp
-
-		if err := verifyProof(tamperedProof0); err == nil {
-			t.Errorf("Expected error for tampered account leaves")
+func TestVerifyBuild(t *testing.T) {
+	// helper
+	hasher := mimc.NewMiMC()
+	hashTwoNodes := func(hash1, hash2 Hash, hash1Message, hash2Message string) Hash {
+		hash, err := circuit.GoComputeHashOfTwoNodes(hasher, hash1, hash2, hash1Message, hash2Message)
+		if err != nil {
+			panic(err)
 		}
-
-		if err := verifyProof(tamperedProof1); err == nil {
-			t.Errorf("Expected error for tampered account leaves")
-		}
+		return hash
 	}
 
-	// Test with modified Proof string but same structure
-	tamperedProofData := proofLower0
-	originalProof := tamperedProofData.Proof
-	tamperedProofData.Proof = proofLower1.Proof // Use a different valid proof that doesn't match this proof's data
+	// create merkle nodes
+	leafNodes := []Hash{{0x12, 0x34}, {0x14, 0x83}, {0x93, 0x39}, {0x82, 0x98}}
+	level1 := []Hash{
+		hashTwoNodes(leafNodes[0], leafNodes[1], "leaf0", "leaf1"),
+		hashTwoNodes(leafNodes[2], leafNodes[3], "leaf2", "leaf3"),
+	}
+	root := hashTwoNodes(level1[0], level1[1], "node0", "node1")
+	nodes := [][]Hash{{root}, level1, leafNodes}
 
-	if err := verifyProof(tamperedProofData); err == nil {
-		t.Errorf("Expected error for mismatched proof data")
+	// test cases
+	tests := []struct {
+		name        string
+		nodes       [][]Hash
+		root        Hash
+		depth       int
+		shouldError bool
+	}{
+		{"valid case", nodes, root, 2, false},
+		{"bad root", nodes, leafNodes[0], 2, true},
+		{"bad node in middle", [][]Hash{{root}, {level1[0], root}, leafNodes}, root, 2, true},
+		{"invalid depth", nodes, root, 4, true},
 	}
 
-	// Restore original proof for cleanup
-	tamperedProofData.Proof = originalProof
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := verifyBuild(tt.nodes, tt.root, tt.depth)
+			if tt.shouldError && err == nil {
+				t.Errorf("expected verifyBuild to error for test %s, but it didn't.", tt.name)
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("expected verifyBuild to pass for valid case, got error: %v", err)
+			}
+		})
+	}
 }
 
-func TestStructuralEdgeCases(t *testing.T) {
-	// Test verifyProofs with empty bottom layer proofs
+func TestVerifyTopLayerProofMatchesAssetSum(t *testing.T) {
+	// the top layer proof should already have a valid asset sum hash and merkle root
+	if err := verifyTopLayerProofMatchesAssetSum(proofTop); err != nil {
+		t.Errorf("expected verifyTopLayerProofMatchesAssetSum to pass for valid proof, got error: %v", err)
+	}
+
+	// check failure case
+	emptySum := circuit.ConstructGoBalance()
+	if err := verifyTopLayerProofMatchesAssetSum(CompletedProof{MerkleRoot: Hash{0x23, 0x98}, MerkleRootWithAssetSumHash: Hash{0x23, 0x98}, AssetSum: &emptySum}); err == nil {
+		t.Error("expected verifyTopLayerProofMatchesAssetSum to fail for bad proof")
+	}
+}
+
+func TestVerifyUser(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{}, []CompletedProof{proofMid}, proofTop)
-	}, "Should panic when bottom layer proofs are empty")
 
-	// Test verifyProofs with empty mid layer proofs
-	assert.Panics(func() {
-		verifyProofs([]CompletedProof{proofLower0}, []CompletedProof{}, proofTop)
-	}, "Should panic when mid layer proofs are empty")
+	// get account 1 from test data
+	accountPosition := 1
+	account := testData0.Accounts[accountPosition]
+	accountMerklePath := circuit.ComputeMerklePath(accountPosition, proofLower0.MerkleNodes)
 
-	// Test cross-layer verification attacks - using a bottom proof as a mid proof
-	assert.Panics(func() {
-		// Try to use a bottom layer proof as a mid layer proof
-		tamperedMidProof := proofLower0 // Use a bottom layer proof as a mid layer proof
-		verifyProofs([]CompletedProof{proofLower1}, []CompletedProof{tamperedMidProof}, proofTop)
-	}, "Should panic when using bottom layer proof as mid layer proof")
+	// proof with random merkle nodes
+	bottomProofWithRandomMerkleNodes := proofLower0
+	bottomProofWithRandomMerkleNodes.MerkleNodes = [][]Hash{{{0x23, 0x32}}}
 
-	// Test proof with all fields set to valid values but structurally invalid
-	// Create a structurally valid but cryptographically invalid proof
-	invalidProof := CompletedProof{
-		Proof:                      proofLower0.Proof,
-		VK:                         proofLower0.VK,
-		AccountLeaves:              proofLower0.AccountLeaves,
-		MerkleRoot:                 proofMid.MerkleRoot,                 // Mismatched root
-		MerkleRootWithAssetSumHash: proofTop.MerkleRootWithAssetSumHash, // Mismatched hash
-		AssetSum:                   proofTop.AssetSum,                   // Mismatched sum
+	// invalid proofs
+	invalidBottomProof := proofLower0
+	invalidBottomProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	invalidMidProof := proofMid
+	invalidMidProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	invalidTopProof := proofTop
+	invalidTopProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid proof path - bottom proof not included in mid proof
+	bottomMerklePath := proofLower0.MerklePath
+	invalidBottomMerklePath := make([]circuit.Hash, len(bottomMerklePath))
+	copy(invalidBottomMerklePath, bottomMerklePath)
+	invalidBottomMerklePath[0] = []byte{0x12, 0x34, 0x56, 0x78}
+
+	proofLower0WithBadPath := proofLower0
+	proofLower0WithBadPath.MerklePath = invalidBottomMerklePath
+
+	// Test cases
+	type TestCase struct {
+		name                     string
+		userVerificationElements UserVerificationElements
+		bottomLayerProof         CompletedProof
+		midLayerProof            CompletedProof
+		topLayerProof            CompletedProof
+		shouldPanic              bool
+	}
+	tests := []TestCase{
+		{
+			"Valid case with random merkle nodes",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			bottomProofWithRandomMerkleNodes,
+			proofMid,
+			proofTop,
+			false,
+		},
+		{
+			"Invalid account data",
+			UserVerificationElements{
+				AccountData:    circuit.GoAccount{UserId: []byte{0x23}},
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid balance",
+			UserVerificationElements{
+				AccountData: circuit.GoAccount{
+					UserId:  account.UserId,
+					Balance: append(circuit.GoBalance{new(big.Int).Add(new(big.Int).Set(account.Balance[0]), big.NewInt(2))}, account.Balance[1:]...),
+				},
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid account merkle path",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid account merkle position",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition - 1,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid bottom proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			invalidBottomProof,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid mid proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			invalidMidProof,
+			proofTop,
+			true,
+		},
+		{
+			"Invalid top proof",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			invalidTopProof,
+			true,
+		},
+		{
+			"Invalid bottom merkle path",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0WithBadPath,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 1",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			altProofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 2",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofMid,
+			proofLower0,
+			proofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 3",
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower1,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
+			"Mismatched proofs 4",
+			UserVerificationElements{
+				AccountData:    testData1.Accounts[4],
+				MerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
+				MerklePosition: 4,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
 	}
 
-	if err := verifyProof(invalidProof); err == nil {
-		t.Errorf("Expected error for structurally valid but cryptographically invalid proof")
+	// add tests to make sure every possible account does indeed verify
+	for i, account := range testData0.Accounts {
+		tests = append(tests, TestCase{
+			fmt.Sprintf("Valid case: batch 0, account %d", i),
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(i, proofLower0.MerkleNodes),
+				MerklePosition: i,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			false,
+		})
 	}
+
+	for i, account := range testData1.Accounts {
+		tests = append(tests, TestCase{
+			fmt.Sprintf("Valid case: batch 1, account %d", i),
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(i, proofLower1.MerkleNodes),
+				MerklePosition: i,
+			},
+			proofLower1,
+			proofMid,
+			proofTop,
+			false,
+		})
+	}
+
+	// run test cases
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				assert.Panics(func() {
+					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+				})
+			} else {
+				assert.NotPanics(func() {
+					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+				})
+			}
+		})
+	}
+}
+
+func TestVerifyFull(t *testing.T) {
+	assert := test.NewAssert(t)
+
+	// first create all valid/invalid material to test with:
+	// create a minimal set of test data
+	validBottomProofs := []CompletedProof{proofLower0, proofLower1}
+	validMidProofs := []CompletedProof{proofMid}
+	validTopProof := proofTop
+	validAccountBatches := [][]circuit.GoAccount{testData0.Accounts, testData1.Accounts}
+
+	// invalid bottom proof
+	invalidBottomProofs := make([]CompletedProof, len(validBottomProofs))
+	copy(invalidBottomProofs, validBottomProofs)
+	invalidBottomProofs[0].MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid mid proof
+	invalidMidProofs := make([]CompletedProof, len(validMidProofs))
+	copy(invalidMidProofs, validMidProofs)
+	invalidMidProofs[0].MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid top proof
+	invalidTopProof := validTopProof
+	invalidTopProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
+
+	// invalid account cases (wrong order, bad account inside, account with wrong balance)
+	invalidAccountBatches := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidAccountBatches[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		copy(invalidAccountBatches[i], validAccountBatches[i])
+	}
+	if len(invalidAccountBatches[0]) > 1 {
+		// swap first two accounts
+		invalidAccountBatches[0][0], invalidAccountBatches[0][1] = invalidAccountBatches[0][1], invalidAccountBatches[0][0]
+	}
+
+	invalidAccountIncluded := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidAccountIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		for j := range validAccountBatches[i] {
+			// deep copy each account
+			invalidAccountIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			// deep copy balance slice
+			invalidAccountIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
+			for k, bal := range validAccountBatches[i][j].Balance {
+				invalidAccountIncluded[i][j].Balance[k] = new(big.Int).Set(bal)
+			}
+		}
+	}
+	invalidAccountIncluded[1][1].UserId = []byte{0x34, 0x28, 0x29}
+
+	invalidBalanceIncluded := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidBalanceIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		for j := range validAccountBatches[i] {
+			// deep copy each account
+			invalidBalanceIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			// deep copy balance slice
+			invalidBalanceIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
+			for k, bal := range validAccountBatches[i][j].Balance {
+				invalidBalanceIncluded[i][j].Balance[k] = new(big.Int).Set(bal)
+			}
+		}
+	}
+	invalidBalanceIncluded[1][1].Balance[1] = new(big.Int).Sub(invalidBalanceIncluded[1][1].Balance[1], big.NewInt(1))
+
+	// too few bottom proofs
+	tooFewBottomProofs := []CompletedProof{proofLower0}
+
+	// too few mid proofs
+	tooFewMidProofs := []CompletedProof{}
+
+	// merkle path of bottom proof messed up
+	bottomProofsWithBadPath := make([]CompletedProof, len(validBottomProofs))
+	copy(bottomProofsWithBadPath, validBottomProofs)
+	badPath := make([]Hash, len(bottomProofsWithBadPath[0].MerklePath))
+	copy(badPath, bottomProofsWithBadPath[0].MerklePath)
+	badPath[0] = []byte{0xde, 0xad, 0xbe, 0xef} // corrupt the path
+	bottomProofsWithBadPath[0].MerklePath = badPath
+
+	// asset sum of top proof different
+	topProofWithBadAssetSum := validTopProof
+	badAssetSum := circuit.ConstructGoBalance()
+	badAssetSum[0].Add(badAssetSum[0], big.NewInt(100)) // change the asset sum
+	topProofWithBadAssetSum.AssetSum = &badAssetSum
+
+	// merkle nodes of bottom proof messed up
+	bottomProofsWithBadNodes := make([]CompletedProof, len(validBottomProofs))
+	copy(bottomProofsWithBadNodes, validBottomProofs)
+	badNodesBottom := make([][]Hash, len(bottomProofsWithBadNodes[0].MerkleNodes))
+	for i := range badNodesBottom {
+		badNodesBottom[i] = make([]Hash, len(bottomProofsWithBadNodes[0].MerkleNodes[i]))
+		copy(badNodesBottom[i], bottomProofsWithBadNodes[0].MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesBottom[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	bottomProofsWithBadNodes[0].MerkleNodes = badNodesBottom
+
+	// merkle nodes of mid proof messed up
+	midProofsWithBadNodes := make([]CompletedProof, len(validMidProofs))
+	copy(midProofsWithBadNodes, validMidProofs)
+	badNodesMid := make([][]Hash, len(midProofsWithBadNodes[0].MerkleNodes))
+	for i := range badNodesMid {
+		badNodesMid[i] = make([]Hash, len(midProofsWithBadNodes[0].MerkleNodes[i]))
+		copy(badNodesMid[i], midProofsWithBadNodes[0].MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesMid[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	midProofsWithBadNodes[0].MerkleNodes = badNodesMid
+
+	// merkle nodes of top proof messed up
+	topProofWithBadNodes := validTopProof
+	badNodesTop := make([][]Hash, len(topProofWithBadNodes.MerkleNodes))
+	for i := range badNodesTop {
+		badNodesTop[i] = make([]Hash, len(topProofWithBadNodes.MerkleNodes[i]))
+		copy(badNodesTop[i], topProofWithBadNodes.MerkleNodes[i])
+	}
+	// corrupt a leaf node, this will fail verifyBuild
+	badNodesTop[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	topProofWithBadNodes.MerkleNodes = badNodesTop
+
+	// test cases
+	tests := []struct {
+		name           string
+		bottomProofs   []CompletedProof
+		midProofs      []CompletedProof
+		topProof       CompletedProof
+		accountBatches [][]circuit.GoAccount
+		shouldPanic    bool
+	}{
+		{"Valid case", validBottomProofs, validMidProofs, validTopProof, validAccountBatches, false},
+		{"Invalid bottom proof", invalidBottomProofs, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Invalid mid proof", validBottomProofs, invalidMidProofs, validTopProof, validAccountBatches, true},
+		{"Invalid top proof", validBottomProofs, validMidProofs, invalidTopProof, validAccountBatches, true},
+		{"Invalid account batches", validBottomProofs, validMidProofs, validTopProof, invalidAccountBatches, true},
+		{"Invalid account included", validBottomProofs, validMidProofs, validTopProof, invalidAccountIncluded, true},
+		{"Invalid balance included", validBottomProofs, validMidProofs, validTopProof, invalidBalanceIncluded, true},
+		{"Too few bottom proofs", tooFewBottomProofs, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Too few mid proofs", validBottomProofs, tooFewMidProofs, validTopProof, validAccountBatches, true},
+		{"Mismatched proofs", validBottomProofs, validMidProofs, altProofTop, validAccountBatches, true},
+		{"Bad bottom proof merkle path", bottomProofsWithBadPath, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Bad top proof asset sum", validBottomProofs, validMidProofs, topProofWithBadAssetSum, validAccountBatches, true},
+		{"Bad bottom proof merkle nodes", bottomProofsWithBadNodes, validMidProofs, validTopProof, validAccountBatches, true},
+		{"Bad mid proof merkle nodes", validBottomProofs, midProofsWithBadNodes, validTopProof, validAccountBatches, true},
+		{"Bad top proof merkle nodes", validBottomProofs, validMidProofs, topProofWithBadNodes, validAccountBatches, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				assert.Panics(func() {
+					verifyFull(tt.bottomProofs, tt.midProofs, tt.topProof, tt.accountBatches)
+				})
+			} else {
+				assert.NotPanics(func() {
+					verifyFull(tt.bottomProofs, tt.midProofs, tt.topProof, tt.accountBatches)
+				})
+			}
+		})
+	}
+}
+
+func TestVerifyFullPublic(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.NotPanics(func() { VerifyFull(batchCount) })
 }
