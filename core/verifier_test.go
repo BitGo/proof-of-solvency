@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"math/big"
 	"os"
 	"testing"
@@ -275,26 +276,15 @@ func TestVerifyUser(t *testing.T) {
 	proofLower0WithBadPath.MerklePath = invalidBottomMerklePath
 
 	// Test cases
-	tests := []struct {
+	type TestCase struct {
 		name                     string
 		userVerificationElements UserVerificationElements
 		bottomLayerProof         CompletedProof
 		midLayerProof            CompletedProof
 		topLayerProof            CompletedProof
 		shouldPanic              bool
-	}{
-		{
-			"Valid case",
-			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
-			},
-			proofLower0,
-			proofMid,
-			proofTop,
-			false,
-		},
+	}
+	tests := []TestCase{
 		{
 			"Valid case with random merkle nodes",
 			UserVerificationElements{
@@ -320,6 +310,21 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
+			"Invalid balance",
+			UserVerificationElements{
+				AccountData: circuit.GoAccount{
+					UserId:  account.UserId,
+					Balance: append(circuit.GoBalance{new(big.Int).Add(new(big.Int).Set(account.Balance[0]), big.NewInt(2))}, account.Balance[1:]...),
+				},
+				MerklePath:     accountMerklePath,
+				MerklePosition: accountPosition,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
+		{
 			"Invalid account merkle path",
 			UserVerificationElements{
 				AccountData:    account,
@@ -335,7 +340,7 @@ func TestVerifyUser(t *testing.T) {
 			"Invalid account merkle position",
 			UserVerificationElements{
 				AccountData:    account,
-				MerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
+				MerklePath:     accountMerklePath,
 				MerklePosition: accountPosition - 1,
 			},
 			proofLower0,
@@ -427,8 +432,52 @@ func TestVerifyUser(t *testing.T) {
 			proofTop,
 			true,
 		},
+		{
+			"Mismatched proofs 4",
+			UserVerificationElements{
+				AccountData:    testData1.Accounts[4],
+				MerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
+				MerklePosition: 4,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			true,
+		},
 	}
 
+	// add tests to make sure every possible account does indeed verify
+	for i, account := range testData0.Accounts {
+		tests = append(tests, TestCase{
+			fmt.Sprintf("Valid case: batch 0, account %d", i),
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(i, proofLower0.MerkleNodes),
+				MerklePosition: i,
+			},
+			proofLower0,
+			proofMid,
+			proofTop,
+			false,
+		})
+	}
+
+	for i, account := range testData1.Accounts {
+		tests = append(tests, TestCase{
+			fmt.Sprintf("Valid case: batch 1, account %d", i),
+			UserVerificationElements{
+				AccountData:    account,
+				MerklePath:     circuit.ComputeMerklePath(i, proofLower1.MerkleNodes),
+				MerklePosition: i,
+			},
+			proofLower1,
+			proofMid,
+			proofTop,
+			false,
+		})
+	}
+
+	// run test cases
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.shouldPanic {
