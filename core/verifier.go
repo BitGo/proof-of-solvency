@@ -173,11 +173,11 @@ func VerifyUser(userInfo UserVerificationElements, bottomLayerProof CompletedPro
 	)
 	panicOnError(
 		verifyMerklePath(bottomLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePosition, bottomLayerProof.MerklePath, midLayerProof.MerkleRoot),
-		"failed to verify if account included in bottom proof",
+		"failed to verify if bottom proof included in middle proof",
 	)
 	panicOnError(
-		verifyMerklePath(midLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePosition, midLayerProof.MerklePath, topLayerProof.MerkleRoot),
-		"failed to verify if account included in bottom proof",
+		verifyMerklePath(midLayerProof.MerkleRootWithAssetSumHash, midLayerProof.MerklePosition, midLayerProof.MerklePath, topLayerProof.MerkleRoot),
+		"failed to verify if middle proof included in top proof",
 	)
 
 	// verify top layer asset sum (encoded in MerkleRootWithAssetSumHash) matches the published asset sum
