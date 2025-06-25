@@ -14,10 +14,13 @@ import (
 const batchCount = 2
 const countPerBatch = 16
 
+var proofLower0, proofLower1, proofMid, proofTop CompletedProof
+var testData0, testData1 ProofElements
+
 // TestMain sets up the test environment by generating test data and proofs once
 // for all tests to use.
 func TestMain(m *testing.M) {
-	// Clean up output directory before running tests
+	// clean up output directory before running tests
 	os.RemoveAll("out")
 	os.MkdirAll("out/secret", 0755)
 	os.MkdirAll("out/public", 0755)
@@ -26,34 +29,30 @@ func TestMain(m *testing.M) {
 	// create testutildata directory
 	os.MkdirAll("testutildata", 0o755)
 
-	// Generate test data with batchCount batches of countPerBatch accounts each
+	// generate test data with batchCount batches of countPerBatch accounts each
 	GenerateData(batchCount, countPerBatch)
 
-	// Generate proofs for the test data
+	// generate proofs for the test data
 	Prove(batchCount)
 
-	// We'll use the existing testdata files for alt proofs when needed instead of generating them
+	// read generated proofs and test data files
+	proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
+	proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
+	proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
+	proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
+	testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
+	testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
 
-	// Run tests
+	// run tests
 	exitCode := m.Run()
 
-	// Exit with test status code
+	// exit with test status code
 	os.Exit(exitCode)
 }
-
-// Get test proofs and data from the generated files
-var proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
-var proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
-var proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
-var proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
 
 // var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
 // var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
 var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
-
-// Test data batches
-var testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
-var testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
 
 func TestVerifyProofPasses(t *testing.T) {
 	// should return nil for valid proofs
@@ -230,6 +229,7 @@ func TestVerifyBuild(t *testing.T) {
 		})
 	}
 }
+
 func TestVerifyTopLayerProofMatchesAssetSum(t *testing.T) {
 	// the top layer proof should already have a valid asset sum hash and merkle root
 	if err := verifyTopLayerProofMatchesAssetSum(proofTop); err != nil {
