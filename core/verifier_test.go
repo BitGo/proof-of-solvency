@@ -517,7 +517,7 @@ func TestVerifyFull(t *testing.T) {
 	invalidTopProof := validTopProof
 	invalidTopProof.MerkleRoot = []byte{0x12, 0x34, 0x56, 0x78}
 
-	// invalid account batches - wrong order
+	// invalid account cases (wrong order, bad account inside, account with wrong balance)
 	invalidAccountBatches := make([][]circuit.GoAccount, len(validAccountBatches))
 	for i := range validAccountBatches {
 		invalidAccountBatches[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
@@ -527,6 +527,36 @@ func TestVerifyFull(t *testing.T) {
 		// swap first two accounts
 		invalidAccountBatches[0][0], invalidAccountBatches[0][1] = invalidAccountBatches[0][1], invalidAccountBatches[0][0]
 	}
+
+	invalidAccountIncluded := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidAccountIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		for j := range validAccountBatches[i] {
+			// deep copy each account
+			invalidAccountIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			// deep copy balance slice
+			invalidAccountIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
+			for k, bal := range validAccountBatches[i][j].Balance {
+				invalidAccountIncluded[i][j].Balance[k] = new(big.Int).Set(bal)
+			}
+		}
+	}
+	invalidAccountIncluded[1][1].UserId = []byte{0x34, 0x28, 0x29}
+
+	invalidBalanceIncluded := make([][]circuit.GoAccount, len(validAccountBatches))
+	for i := range validAccountBatches {
+		invalidBalanceIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
+		for j := range validAccountBatches[i] {
+			// deep copy each account
+			invalidBalanceIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			// deep copy balance slice
+			invalidBalanceIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
+			for k, bal := range validAccountBatches[i][j].Balance {
+				invalidBalanceIncluded[i][j].Balance[k] = new(big.Int).Set(bal)
+			}
+		}
+	}
+	invalidBalanceIncluded[1][1].Balance[1] = new(big.Int).Sub(invalidBalanceIncluded[1][1].Balance[1], big.NewInt(1))
 
 	// too few bottom proofs
 	tooFewBottomProofs := []CompletedProof{proofLower0}
@@ -597,6 +627,8 @@ func TestVerifyFull(t *testing.T) {
 		{"Invalid mid proof", validBottomProofs, invalidMidProofs, validTopProof, validAccountBatches, true},
 		{"Invalid top proof", validBottomProofs, validMidProofs, invalidTopProof, validAccountBatches, true},
 		{"Invalid account batches", validBottomProofs, validMidProofs, validTopProof, invalidAccountBatches, true},
+		{"Invalid account included", validBottomProofs, validMidProofs, validTopProof, invalidAccountIncluded, true},
+		{"Invalid balance included", validBottomProofs, validMidProofs, validTopProof, invalidBalanceIncluded, true},
 		{"Too few bottom proofs", tooFewBottomProofs, validMidProofs, validTopProof, validAccountBatches, true},
 		{"Too few mid proofs", validBottomProofs, tooFewMidProofs, validTopProof, validAccountBatches, true},
 		{"Mismatched proofs", validBottomProofs, validMidProofs, altProofTop, validAccountBatches, true},
@@ -620,4 +652,9 @@ func TestVerifyFull(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyFullPublic(t *testing.T) {
+	assert := test.NewAssert(t)
+	assert.NotPanics(func() { VerifyFull(batchCount) })
 }
