@@ -485,6 +485,115 @@ func TestReadDataFromFile(t *testing.T) {
 			t.Errorf("Balance not read correctly")
 		}
 	})
+
+	t.Run("Reading UserVerificationElements from raw file", func(t *testing.T) {
+		filePath := "testutildata/test_user_verification_0.json"
+
+		// Create raw user verification elements
+		rawUserElements := RawUserVerificationElements{
+			AccountInfo: circuit.RawGoAccount{
+				UserId:  "test-user-abc",
+				Balance: circuit.ConstructGoBalance(big.NewInt(500), big.NewInt(700)),
+			},
+			ProofInfo: RawUserProofInfo{
+				UserMerklePath:     []Hash{{1, 2, 3}, {4, 5, 6}},
+				UserMerklePosition: 42,
+				BottomProof: RawLowerLevelProof{
+					Proof:                      "BottomProof",
+					VerificationKey:            "BottomVK",
+					MerkleRoot:                 []byte{1, 2, 3},
+					MerkleRootWithAssetSumHash: []byte{4, 5, 6},
+					MerklePath:                 []Hash{{7, 8, 9}, {10, 11, 12}},
+					MerklePosition:             123,
+				},
+				MiddleProof: RawLowerLevelProof{
+					Proof:                      "MiddleProof",
+					VerificationKey:            "MiddleVK",
+					MerkleRoot:                 []byte{13, 14, 15},
+					MerkleRootWithAssetSumHash: []byte{16, 17, 18},
+					MerklePath:                 []Hash{{19, 20, 21}, {22, 23, 24}},
+					MerklePosition:             456,
+				},
+				TopProof: RawTopLevelProof{
+					Proof:                      "TopProof",
+					VerificationKey:            "TopVK",
+					MerkleRoot:                 []byte{25, 26, 27},
+					MerkleRootWithAssetSumHash: []byte{28, 29, 30},
+					AssetSum:                   &[]string{"1000", "2000"},
+				},
+			},
+		}
+
+		err := writeJson(filePath, rawUserElements)
+		if err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+		defer cleanupFiles(filePath)
+
+		// Read UserVerificationElements from file
+		result := ReadDataFromFile[UserVerificationElements](filePath)
+
+		// Verify AccountInfo
+		expectedAccount := circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountInfo)
+		if !bytes.Equal(result.AccountInfo.UserId, expectedAccount.UserId) {
+			t.Errorf("UserId not converted correctly: expected %v, got %v",
+				expectedAccount.UserId, result.AccountInfo.UserId)
+		}
+		if result.AccountInfo.Balance[0].Cmp(big.NewInt(500)) != 0 ||
+			result.AccountInfo.Balance[1].Cmp(big.NewInt(700)) != 0 {
+			t.Errorf("AccountInfo Balance not read correctly")
+		}
+
+		// Verify UserMerklePath and Position
+		if len(result.ProofInfo.UserMerklePath) != 2 {
+			t.Errorf("Expected 2 in UserMerklePath, got %d", len(result.ProofInfo.UserMerklePath))
+		}
+		if result.ProofInfo.UserMerklePosition != 42 {
+			t.Errorf("UserMerklePosition not read correctly: expected 42, got %d", result.ProofInfo.UserMerklePosition)
+		}
+
+		// Verify BottomProof
+		if result.ProofInfo.BottomProof.Proof != "BottomProof" || result.ProofInfo.BottomProof.VerificationKey != "BottomVK" {
+			t.Errorf("BottomProof Proof or VK not read correctly")
+		}
+		if !bytes.Equal(result.ProofInfo.BottomProof.MerkleRoot, []byte{1, 2, 3}) {
+			t.Errorf("BottomProof MerkleRoot not read correctly")
+		}
+		if result.ProofInfo.BottomProof.MerklePosition != 123 {
+			t.Errorf("BottomProof MerklePosition not read correctly")
+		}
+
+		// Verify MiddleProof
+		if result.ProofInfo.MiddleProof.Proof != "MiddleProof" || result.ProofInfo.MiddleProof.VerificationKey != "MiddleVK" {
+			t.Errorf("MiddleProof Proof or VK not read correctly")
+		}
+		if !bytes.Equal(result.ProofInfo.MiddleProof.MerkleRoot, []byte{13, 14, 15}) {
+			t.Errorf("MiddleProof MerkleRoot not read correctly")
+		}
+		if result.ProofInfo.MiddleProof.MerklePosition != 456 {
+			t.Errorf("MiddleProof MerklePosition not read correctly")
+		}
+
+		// Verify TopProof
+		if result.ProofInfo.TopProof.Proof != "TopProof" || result.ProofInfo.TopProof.VerificationKey != "TopVK" {
+			t.Errorf("TopProof Proof or VK not read correctly")
+		}
+		if !bytes.Equal(result.ProofInfo.TopProof.MerkleRoot, []byte{25, 26, 27}) {
+			t.Errorf("TopProof MerkleRoot not read correctly")
+		}
+
+		// Verify TopProof AssetSum
+		if result.ProofInfo.TopProof.AssetSum == nil {
+			t.Errorf("TopProof AssetSum should not be nil")
+		}
+		if len(*result.ProofInfo.TopProof.AssetSum) != 2 {
+			t.Errorf("Expected TopProof AssetSum length 2, got %d", len(*result.ProofInfo.TopProof.AssetSum))
+		}
+		if (*result.ProofInfo.TopProof.AssetSum)[0].Cmp(big.NewInt(1000)) != 0 ||
+			(*result.ProofInfo.TopProof.AssetSum)[1].Cmp(big.NewInt(2000)) != 0 {
+			t.Errorf("TopProof AssetSum values not read correctly: expected [1000, 2000], got %v", *result.ProofInfo.TopProof.AssetSum)
+		}
+	})
 }
 
 func TestWriteReadDataRoundTrip(t *testing.T) {
