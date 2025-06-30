@@ -47,7 +47,7 @@ var userVerifyCmd = &cobra.Command{
 		"---> The low level proof was included in the asset sum for the mid level proof.\n" +
 		"---> The mid level proof was included in the asset sum for the high level proof.\n" +
 		"---> There were no accounts with overflowing balances or negative balances included in any of the asset sums.",
-	Args: cobra.ExactArgs(4),
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		userVerificationElements := core.ReadDataFromFile[core.UserVerificationElements](args[0])
 		core.VerifyUser(userVerificationElements)
