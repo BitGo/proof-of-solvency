@@ -491,9 +491,9 @@ func TestReadDataFromFile(t *testing.T) {
 
 		// Create raw user verification elements
 		rawUserElements := RawUserVerificationElements{
-			AccountInfo: circuit.RawGoAccount{
+			AccountInfo: RawUserAccountInfo{
 				UserId:  "test-user-abc",
-				Balance: circuit.ConstructGoBalance(big.NewInt(500), big.NewInt(700)),
+				Balance: []string{"500", "700"},
 			},
 			ProofInfo: RawUserProofInfo{
 				UserMerklePath:     []Hash{{1, 2, 3}, {4, 5, 6}},
@@ -534,7 +534,10 @@ func TestReadDataFromFile(t *testing.T) {
 		result := ReadDataFromFile[UserVerificationElements](filePath)
 
 		// Verify AccountInfo
-		expectedAccount := circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountInfo)
+		expectedAccount := circuit.ConvertRawGoAccountToGoAccount(circuit.RawGoAccount{
+			UserId:  rawUserElements.AccountInfo.UserId,
+			Balance: circuit.ConstructGoBalance(big.NewInt(500), big.NewInt(700)),
+		})
 		if !bytes.Equal(result.AccountInfo.UserId, expectedAccount.UserId) {
 			t.Errorf("UserId not converted correctly: expected %v, got %v",
 				expectedAccount.UserId, result.AccountInfo.UserId)
