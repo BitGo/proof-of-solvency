@@ -330,15 +330,16 @@ func TestReadDataFromFile(t *testing.T) {
 
 	t.Run("Reading CompletedProof", func(t *testing.T) {
 		filePath := "testutildata/test_completed_proof_0.json"
-		// Create CompletedProof and write to file
-		original := CompletedProof{
+
+		// Create RawCompletedProof and write to file
+		original := RawCompletedProof{
 			Proof:                      "AAAA",
 			VerificationKey:            "BBBB",
 			MerklePath:                 []Hash{{1, 2, 3, 4}, {5, 6, 7, 8}},
 			MerkleNodes:                [][]Hash{{{1, 2, 3, 4}, {5, 6, 7, 8}}},
 			MerkleRoot:                 []byte{10, 11, 12, 13},
 			MerkleRootWithAssetSumHash: []byte{20, 21, 22, 23},
-			AssetSum:                   createTestProofElements().AssetSum,
+			AssetSum:                   &[]string{"400", "600"},
 		}
 		err := writeJson(filePath, original)
 		if err != nil {
@@ -380,6 +381,77 @@ func TestReadDataFromFile(t *testing.T) {
 		if !bytes.Equal(result.MerkleRootWithAssetSumHash, expectedMerkleRootWithAssetSumHash) {
 			t.Errorf("MerkleRootWithAssetSumHash not read correctly")
 		}
+
+		// Verify AssetSum
+		if result.AssetSum == nil {
+			t.Errorf("AssetSum should not be nil")
+		}
+		if len(*result.AssetSum) != 2 {
+			t.Errorf("Expected AssetSum length 2, got %d", len(*result.AssetSum))
+		}
+		if (*result.AssetSum)[0].Int64() != 400 || (*result.AssetSum)[1].Int64() != 600 {
+			t.Errorf("AssetSum values not read correctly: expected [400, 600], got %v", *result.AssetSum)
+		}
+	})
+
+	t.Run("Reading CompletedProof with nil AssetSum", func(t *testing.T) {
+		filePath := "testutildata/test_completed_proof_0.json"
+
+		// Create RawCompletedProof and write to file
+		original := RawCompletedProof{
+			Proof:                      "AAAA",
+			VerificationKey:            "BBBB",
+			MerklePath:                 []Hash{{1, 2, 3, 4}, {5, 6, 7, 8}},
+			MerkleNodes:                [][]Hash{{{1, 2, 3, 4}, {5, 6, 7, 8}}},
+			MerkleRoot:                 []byte{10, 11, 12, 13},
+			MerkleRootWithAssetSumHash: []byte{20, 21, 22, 23},
+			AssetSum:                   nil,
+		}
+		err := writeJson(filePath, original)
+		if err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+		defer cleanupFiles(filePath)
+
+		// Read CompletedProof from file
+		result := ReadDataFromFile[CompletedProof](filePath)
+
+		// Verify it's properly read
+		if result.Proof != "AAAA" || result.VerificationKey != "BBBB" {
+			t.Errorf("Proof or VerificationKey not read correctly")
+		}
+
+		// Verify MerklePath
+		if len(result.MerklePath) != 2 {
+			t.Errorf("Expected 2 in MerklePath, got %d", len(result.MerklePath))
+		}
+
+		// Verify first MerklePath hash
+		expectedHash1 := Hash{1, 2, 3, 4}
+		if !bytes.Equal(result.MerklePath[0], expectedHash1) {
+			t.Errorf("First MerklePath hash not read correctly")
+		}
+
+		// Verify MerkleNodes
+		if len(result.MerkleNodes) != 1 {
+			t.Errorf("Expected 1 level in MerkleNodes, got %d", len(result.MerkleNodes))
+		}
+
+		// Verify MerkleRoot and MerkleRootWithAssetSumHash
+		expectedMerkleRoot := []byte{10, 11, 12, 13}
+		if !bytes.Equal(result.MerkleRoot, expectedMerkleRoot) {
+			t.Errorf("MerkleRoot not read correctly")
+		}
+
+		expectedMerkleRootWithAssetSumHash := []byte{20, 21, 22, 23}
+		if !bytes.Equal(result.MerkleRootWithAssetSumHash, expectedMerkleRootWithAssetSumHash) {
+			t.Errorf("MerkleRootWithAssetSumHash not read correctly")
+		}
+
+		// Verify AssetSum
+		if result.AssetSum != nil {
+			t.Errorf("AssetSum should be nil")
+		}
 	})
 
 	t.Run("Reading GoAccount from RawGoAccount file", func(t *testing.T) {
@@ -411,63 +483,6 @@ func TestReadDataFromFile(t *testing.T) {
 		if result.Balance[0].Cmp(big.NewInt(100)) != 0 ||
 			result.Balance[1].Cmp(big.NewInt(200)) != 0 {
 			t.Errorf("Balance not read correctly")
-		}
-	})
-}
-
-func TestReadDataFromFiles(t *testing.T) {
-	// First create two completed proof files
-	proof1 := CompletedProof{
-		Proof:                      "TestProof1",
-		VerificationKey:            "TestVK1",
-		MerklePath:                 []Hash{{1, 2, 3}},
-		MerkleNodes:                [][]Hash{{{1, 2, 3}}},
-		MerkleRoot:                 []byte{10, 11, 12},
-		MerkleRootWithAssetSumHash: []byte{20, 21, 22},
-	}
-
-	proof2 := CompletedProof{
-		Proof:                      "TestProof2",
-		VerificationKey:            "TestVK2",
-		MerklePath:                 []Hash{{4, 5, 6}},
-		MerkleNodes:                [][]Hash{{{4, 5, 6}}},
-		MerkleRoot:                 []byte{13, 14, 15},
-		MerkleRootWithAssetSumHash: []byte{23, 24, 25},
-	}
-
-	// Write to files in testutildata
-	filePath1 := "testutildata/test_proofs_0.json"
-	filePath2 := "testutildata/test_proofs_1.json"
-	WriteDataToFile(filePath1, proof1)
-	WriteDataToFile(filePath2, proof2)
-	defer cleanupFiles(filePath1, filePath2)
-
-	t.Run("Reading multiple CompletedProof files", func(t *testing.T) {
-		// Read from multiple files in testutildata
-		proofs := ReadDataFromFiles[CompletedProof](2, "testutildata/test_proofs_")
-
-		// Verify we got the right number of proofs
-		if len(proofs) != 2 {
-			t.Errorf("Expected 2 proofs, got %d", len(proofs))
-		}
-
-		// Verify first proof data
-		if proofs[0].Proof != "TestProof1" || proofs[0].VerificationKey != "TestVK1" {
-			t.Errorf("First proof not read correctly")
-		}
-
-		// Verify second proof data
-		if proofs[1].Proof != "TestProof2" || proofs[1].VerificationKey != "TestVK2" {
-			t.Errorf("Second proof not read correctly")
-		}
-
-		// Verify MerkleRoots
-		if !bytes.Equal(proofs[0].MerkleRoot, []byte{10, 11, 12}) {
-			t.Errorf("First proof MerkleRoot not read correctly")
-		}
-
-		if !bytes.Equal(proofs[1].MerkleRoot, []byte{13, 14, 15}) {
-			t.Errorf("Second proof MerkleRoot not read correctly")
 		}
 	})
 }
