@@ -275,173 +275,196 @@ func TestVerifyUser(t *testing.T) {
 	proofLower0WithBadPath := proofLower0
 	proofLower0WithBadPath.MerklePath = invalidBottomMerklePath
 
-	// Test cases
+	// Run tests with the updated structure
 	type TestCase struct {
 		name                     string
 		userVerificationElements UserVerificationElements
-		bottomLayerProof         CompletedProof
-		midLayerProof            CompletedProof
-		topLayerProof            CompletedProof
 		shouldPanic              bool
 	}
 	tests := []TestCase{
 		{
 			"Valid case with random merkle nodes",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        bottomProofWithRandomMerkleNodes,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			bottomProofWithRandomMerkleNodes,
-			proofMid,
-			proofTop,
 			false,
 		},
 		{
 			"Invalid account data",
 			UserVerificationElements{
-				AccountData:    circuit.GoAccount{UserId: []byte{0x23}},
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: circuit.GoAccount{UserId: []byte{0x23}},
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid balance",
 			UserVerificationElements{
-				AccountData: circuit.GoAccount{
+				AccountInfo: circuit.GoAccount{
 					UserId:  account.UserId,
 					Balance: append(circuit.GoBalance{new(big.Int).Add(new(big.Int).Set(account.Balance[0]), big.NewInt(2))}, account.Balance[1:]...),
 				},
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid account merkle path",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(0, proofLower0.MerkleNodes),
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid account merkle position",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition - 1,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition - 1,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid bottom proof",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        invalidBottomProof,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			invalidBottomProof,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid mid proof",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        invalidMidProof,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			invalidMidProof,
-			proofTop,
 			true,
 		},
 		{
 			"Invalid top proof",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           invalidTopProof,
+				},
 			},
-			proofLower0,
-			proofMid,
-			invalidTopProof,
 			true,
 		},
 		{
 			"Invalid bottom merkle path",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0WithBadPath,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0WithBadPath,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Mismatched proofs 1",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           altProofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			altProofTop,
 			true,
 		},
 		{
 			"Mismatched proofs 2",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofMid,
+					MiddleProof:        proofLower0,
+					TopProof:           proofTop,
+				},
 			},
-			proofMid,
-			proofLower0,
-			proofTop,
 			true,
 		},
 		{
 			"Mismatched proofs 3",
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     accountMerklePath,
-				MerklePosition: accountPosition,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower1,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower1,
-			proofMid,
-			proofTop,
 			true,
 		},
 		{
 			"Mismatched proofs 4",
 			UserVerificationElements{
-				AccountData:    testData1.Accounts[4],
-				MerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
-				MerklePosition: 4,
+				AccountInfo: testData1.Accounts[4],
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
+					UserMerklePosition: 4,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			true,
 		},
 	}
@@ -451,13 +474,15 @@ func TestVerifyUser(t *testing.T) {
 		tests = append(tests, TestCase{
 			fmt.Sprintf("Valid case: batch 0, account %d", i),
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     circuit.ComputeMerklePath(i, proofLower0.MerkleNodes),
-				MerklePosition: i,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(i, proofLower0.MerkleNodes),
+					UserMerklePosition: i,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower0,
-			proofMid,
-			proofTop,
 			false,
 		})
 	}
@@ -466,13 +491,15 @@ func TestVerifyUser(t *testing.T) {
 		tests = append(tests, TestCase{
 			fmt.Sprintf("Valid case: batch 1, account %d", i),
 			UserVerificationElements{
-				AccountData:    account,
-				MerklePath:     circuit.ComputeMerklePath(i, proofLower1.MerkleNodes),
-				MerklePosition: i,
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(i, proofLower1.MerkleNodes),
+					UserMerklePosition: i,
+					BottomProof:        proofLower1,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
 			},
-			proofLower1,
-			proofMid,
-			proofTop,
 			false,
 		})
 	}
@@ -482,11 +509,11 @@ func TestVerifyUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.shouldPanic {
 				assert.Panics(func() {
-					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+					VerifyUser(tt.userVerificationElements)
 				})
 			} else {
 				assert.NotPanics(func() {
-					VerifyUser(tt.userVerificationElements, tt.bottomLayerProof, tt.midLayerProof, tt.topLayerProof)
+					VerifyUser(tt.userVerificationElements)
 				})
 			}
 		})
