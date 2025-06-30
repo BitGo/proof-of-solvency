@@ -27,8 +27,13 @@ type UserVerificationElements struct {
 }
 
 type RawUserVerificationElements struct {
-	AccountInfo circuit.RawGoAccount
+	AccountInfo RawUserAccountInfo
 	ProofInfo   RawUserProofInfo
+}
+
+type RawUserAccountInfo struct {
+	UserId  string
+	Balance []string
 }
 
 type RawUserProofInfo struct {
