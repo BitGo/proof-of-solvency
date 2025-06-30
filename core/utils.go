@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"math/big"
 	"os"
 	"strconv"
 
@@ -58,20 +59,45 @@ func WriteDataToFile[D ProofElements | CompletedProof | circuit.GoAccount](fileP
 	// then write to file
 	switch v := any(data).(type) {
 	case circuit.GoAccount:
-		err := writeJson(filePath, circuit.ConvertGoAccountToRawGoAccount(v))
-		if err != nil {
-			panic("Error writing raw go account to file: " + err.Error())
-		}
+		panicOnError(
+			writeJson(filePath, circuit.ConvertGoAccountToRawGoAccount(v)),
+			"error writing raw go account to file",
+		)
 	case ProofElements:
-		err := writeJson(filePath, ConvertProofElementsToRawProofElements(v))
-		if err != nil {
-			panic("Error writing raw proof elements to file: " + err.Error())
+		panicOnError(
+			writeJson(filePath, ConvertProofElementsToRawProofElements(v)),
+			"error writing raw proof elements to file",
+		)
+	case CompletedProof:
+		// convert the asset sum to a slice of strings before writing
+		var rawAssetSum *[]string
+		if v.AssetSum != nil {
+			convertedAssetSum := make([]string, len(*v.AssetSum))
+			for i, asset := range *v.AssetSum {
+				convertedAssetSum[i] = asset.String()
+			}
+			rawAssetSum = &convertedAssetSum
+		} else {
+			rawAssetSum = nil
 		}
+
+		rawCompletedProof := RawCompletedProof{
+			Proof:                      v.Proof,
+			VerificationKey:            v.VerificationKey,
+			MerkleRoot:                 v.MerkleRoot,
+			MerkleRootWithAssetSumHash: v.MerkleRootWithAssetSumHash,
+			MerklePath:                 v.MerklePath,
+			MerklePosition:             v.MerklePosition,
+			MerkleNodes:                v.MerkleNodes,
+			AssetSum:                   rawAssetSum,
+		}
+
+		panicOnError(
+			writeJson(filePath, rawCompletedProof),
+			"error writing raw completed proof to file",
+		)
 	default:
-		err := writeJson(filePath, data)
-		if err != nil {
-			panic("Error writing completed proof to file: " + err.Error())
-		}
+		panicOnError(writeJson(filePath, data), "error writing data to file")
 	}
 }
 
@@ -94,8 +120,7 @@ func readJson(filePath string, data interface{}) error {
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | UserVerificationElements](filePath string) D {
 	var data D
 
-	// if reading GoAccount, ProofElements, or UserVerificationElements, first read as the corresponding
-	// raw data interface, then convert to the actual interface
+	// if data must be read in a "raw" format, handle the conversion accordingly
 	switch any(data).(type) {
 	case circuit.GoAccount:
 		var rawData circuit.RawGoAccount
@@ -106,18 +131,89 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 		panicOnError(readJson(filePath, &rawProofElements), "error reading raw proof elements from file")
 		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
 	case UserVerificationElements:
-		var rawUserElements struct {
-			AccountData    circuit.RawGoAccount
-			MerklePath     []Hash
-			MerklePosition int
-		}
+		var rawUserElements RawUserVerificationElements
 		panicOnError(readJson(filePath, &rawUserElements), "error reading raw user verification elements from file")
+
+		// convert the top proof's asset sum to a circuit.GoBalance
+		var actualTopProofAssetSum *circuit.GoBalance
+		if rawUserElements.ProofInfo.TopProof.AssetSum == nil {
+			panic("reading user verification elements failed: TopProof.AssetSum is nil")
+		} else {
+			convertedAssetSum := make(circuit.GoBalance, len(*rawUserElements.ProofInfo.TopProof.AssetSum))
+			for i, asset := range *rawUserElements.ProofInfo.TopProof.AssetSum {
+				bigIntValue, ok := new(big.Int).SetString(asset, 10)
+				if !ok {
+					panic("Error converting asset sum string to big.Int: " + asset)
+				}
+				convertedAssetSum[i] = bigIntValue
+			}
+			actualTopProofAssetSum = &convertedAssetSum
+		}
+
+		// construct the UserVerificationElements from the raw data
 		actualUserElements := UserVerificationElements{
-			AccountData:    circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountData),
-			MerklePath:     rawUserElements.MerklePath,
-			MerklePosition: rawUserElements.MerklePosition,
+			AccountInfo: circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountInfo),
+			ProofInfo: UserProofInfo{
+				UserMerklePath:     rawUserElements.ProofInfo.UserMerklePath,
+				UserMerklePosition: rawUserElements.ProofInfo.UserMerklePosition,
+				BottomProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.BottomProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.BottomProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.BottomProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.BottomProof.MerkleRootWithAssetSumHash,
+					MerklePath:                 rawUserElements.ProofInfo.BottomProof.MerklePath,
+					MerklePosition:             rawUserElements.ProofInfo.BottomProof.MerklePosition,
+				},
+				MiddleProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.MiddleProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.MiddleProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.MiddleProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.MiddleProof.MerkleRootWithAssetSumHash,
+					MerklePath:                 rawUserElements.ProofInfo.MiddleProof.MerklePath,
+					MerklePosition:             rawUserElements.ProofInfo.MiddleProof.MerklePosition,
+				},
+				TopProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.TopProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.TopProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.TopProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.TopProof.MerkleRootWithAssetSumHash,
+					AssetSum:                   actualTopProofAssetSum,
+				},
+			},
 		}
 		return any(actualUserElements).(D)
+	case CompletedProof:
+		var rawCompletedProof RawCompletedProof
+		panicOnError(readJson(filePath, &rawCompletedProof), "error reading raw completed proof from file")
+
+		// convert the raw asset sum to a circuit.GoBalance
+		var actualAssetSum *circuit.GoBalance
+		if rawCompletedProof.AssetSum == nil {
+			actualAssetSum = nil
+		} else {
+			convertedAssetSum := make(circuit.GoBalance, len(*rawCompletedProof.AssetSum))
+			for i, asset := range *rawCompletedProof.AssetSum {
+				bigIntValue, ok := new(big.Int).SetString(asset, 10)
+				if !ok {
+					panic("Error converting asset sum string to big.Int: " + asset)
+				}
+				convertedAssetSum[i] = bigIntValue
+			}
+			actualAssetSum = &convertedAssetSum
+		}
+
+		actualCompletedProof := CompletedProof{
+			Proof:                      rawCompletedProof.Proof,
+			VerificationKey:            rawCompletedProof.VerificationKey,
+			MerkleRoot:                 rawCompletedProof.MerkleRoot,
+			MerkleRootWithAssetSumHash: rawCompletedProof.MerkleRootWithAssetSumHash,
+			MerklePath:                 rawCompletedProof.MerklePath,
+			MerklePosition:             rawCompletedProof.MerklePosition,
+			MerkleNodes:                rawCompletedProof.MerkleNodes,
+			AssetSum:                   actualAssetSum,
+		}
+		return any(actualCompletedProof).(D)
+
 	default:
 		err := readJson(filePath, &data)
 		if err != nil {
