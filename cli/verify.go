@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bitgo.com/proof_of_reserves/circuit"
 	"fmt"
 	"strconv"
 
@@ -11,42 +10,50 @@ import (
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify [BatchCount]",
-	Short: "Verifies proofs using the public data in 'out/public/' and the user data in 'out/user/'",
-	Long:  "Verifies proofs using the public data in 'out/public/' and the user data in 'out/user/'. This function takes 1 argument: the number of batches.",
-	Args:  cobra.ExactArgs(1),
+	Short: "Performs full verification of using the public data in 'out/public/' and the user data in 'out/secret/'",
+	Long: "Performs full verification of all generated proofs using the public data in 'out/public/' and the user data in 'out/user/'.\n" +
+		"Intended to be used after proof generation to validate the proofs were generated correctly.\n" +
+		"Verifies: \n" +
+		" 1) Each proof is valid (the zk-SNARK verification passes).\n" +
+		" 2) Each bottom level and mid level proof's merkle path leads to its corresponding upper level proof's merkle root.\n" +
+		" 3) Each proof has merkle nodes that accurately represent the tree of the merkle root.\n" +
+		" 4) Each account was included in at least one bottom level proof.\n" +
+		" 5) The AssetSum published in the top level proof is indeed the sum hashed in MerkleRootWithAssetSumHash.\n" +
+		"The command takes 1 argument: the number of batches.",
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		batchCount, err := strconv.Atoi(args[0])
 		if err != nil {
 			fmt.Println("Error parsing batchCount:", err)
 			return
 		}
-		account := core.ReadDataFromFile[circuit.GoAccount]("out/user/test_account.json")
-		core.Verify(batchCount, account)
+		core.VerifyFull(batchCount)
 		println("Verification succeeded!")
 	},
 }
 
 var userVerifyCmd = &cobra.Command{
 	Use:   "userverify [path/to/useraccount.json] [path/to/bottomlevelproof.json] [path/to/midlevelproof.json] [path/to/toplevelproof.json]",
-	Short: "Verify your account was included in the proofs and the proofs are sufficient.",
-	Long: "This is intended to be the main verification path, requiring O(log n) time to verify proof of solvency. " +
-		"This verification path verifies that \n" +
-		"1) Your account was included in the bottom level proof you were provided\n" +
-		"2) The bottom level proof you were provided was included in the mid level proof you were provided\n" +
-		"3) The mid level proof you were provided was included in the top level proof you were provided\n" +
-		"4) The top level proof you were provided matches the asset sum you were provided\n" +
+	Short: "Verify the provided user account was included in the proofs and the proofs are valid.",
+	Long: "Verifies the provided user account was included in the provided proofs and proofs are valid.\n" +
+		"This is the main verification tool by which one can verify they were included in the total liability sum and no negative accounts were included in the sum.\n" +
+		"Verifies:\n" +
+		"1) The given account was included in the bottom level proof provided\n" +
+		"2) The bottom level proof provided was included in the mid level proof provided\n" +
+		"3) The mid level proof provided was included in the top level proof provided\n" +
+		"4) The top level proof provided matches the asset sum published\n" +
 		"5) The chain of proofs is valid (i.e., your account was included in the asset sum for the low level proof, " +
 		"the low level proof was included in the asset sum for the mid level proof, " +
 		"the mid level proof was included in the asset sum for the high level proof, and " +
 		"there were no accounts with overflowing balances or negative balances included in any of the asset sums.",
 	Args: cobra.ExactArgs(4),
 	Run: func(cmd *cobra.Command, args []string) {
-		userAccount := core.ReadDataFromFile[circuit.GoAccount](args[0])
+		userVerificationElements := core.ReadDataFromFile[core.UserVerificationElements](args[0])
 		bottomLevelProof := core.ReadDataFromFile[core.CompletedProof](args[1])
 		midLevelProof := core.ReadDataFromFile[core.CompletedProof](args[2])
 		topLevelProof := core.ReadDataFromFile[core.CompletedProof](args[3])
-		core.VerifyProofPath(circuit.GoComputeMiMCHashForAccount(userAccount), bottomLevelProof, midLevelProof, topLevelProof)
-		println("Verification path succeeded!")
+		core.VerifyUser(userVerificationElements, bottomLevelProof, midLevelProof, topLevelProof)
+		println("User verification succeeded!")
 	},
 }
 

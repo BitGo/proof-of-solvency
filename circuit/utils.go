@@ -9,6 +9,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
+	"github.com/consensys/gnark-crypto/hash"
 )
 
 type Hash = []byte
@@ -112,6 +113,19 @@ func GoComputeMiMCHashesForAccounts(accounts []GoAccount) (hashes []Hash) {
 	return hashes
 }
 
+func GoComputeHashOfTwoNodes(hasher hash.StateStorer, node1, node2 Hash, label1, label2 string) (Hash, error) {
+	hasher.Reset()
+	_, err := hasher.Write(node1)
+	if err != nil {
+		return nil, fmt.Errorf("error writing %s to hasher: %w", label1, err)
+	}
+	_, err = hasher.Write(node2)
+	if err != nil {
+		return nil, fmt.Errorf("error writing %s to hasher: %w", label2, err)
+	}
+	return hasher.Sum(nil), nil
+}
+
 // goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
 // given a particular TreeDepth.
 func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
@@ -119,13 +133,13 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	if treeDepth < 0 {
 		panic("tree depth must be greater than 0")
 	}
-	if len(hashes) > powOfTwo(treeDepth) {
+	if len(hashes) > PowOfTwo(treeDepth) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
 	// store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
-	nodes := make([]Hash, powOfTwo(treeDepth))
-	for i := 0; i < powOfTwo(treeDepth); i++ {
+	nodes := make([]Hash, PowOfTwo(treeDepth))
+	for i := 0; i < PowOfTwo(treeDepth); i++ {
 		if i < len(hashes) {
 			nodes[i] = hashes[i]
 		} else {
@@ -136,7 +150,7 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 	// iteratively calculate hashes of parent nodes from bottom level to root
 	hasher := mimc.NewMiMC()
 	for i := treeDepth - 1; i >= 0; i-- {
-		for j := 0; j < powOfTwo(i); j++ {
+		for j := 0; j < PowOfTwo(i); j++ {
 			hasher.Reset()
 			_, err := hasher.Write(nodes[j*2])
 			if err != nil {
@@ -162,6 +176,82 @@ func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
 // It returns a consistent result with computeMerkleRootFromAccounts in the circuit.
 func GoComputeMerkleRootFromAccounts(accounts []GoAccount) (rootHash Hash) {
 	return GoComputeMerkleRootFromHashes(GoComputeMiMCHashesForAccounts(accounts))
+}
+
+func goComputeMerkleTreeNodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
+	// preliminary checks
+	if treeDepth < 0 {
+		panic("tree depth must be greater than 0")
+	}
+	if len(hashes) > PowOfTwo(treeDepth) {
+		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
+	}
+
+	// create [][]Hash to store all internal nodes
+	// nodes[i] will represent the hashes of all the nodes at depth i
+	nodes := make([][]Hash, treeDepth+1)
+
+	// at bottom layer, store hashes of accounts (pad with 0's to reach 2^treeDepth nodes)
+	nodes[treeDepth] = make([]Hash, PowOfTwo(treeDepth))
+	for i := 0; i < PowOfTwo(treeDepth); i++ {
+		if i < len(hashes) {
+			nodes[treeDepth][i] = hashes[i]
+		} else {
+			nodes[treeDepth][i] = padToModBytes(big.NewInt(0))
+		}
+	}
+
+	// iteratively calculate hashes of parent nodes from bottom level to root
+	hasher := mimc.NewMiMC()
+	for i := treeDepth - 1; i >= 0; i-- {
+		nodes[i] = make([]Hash, PowOfTwo(i))
+		for j := 0; j < PowOfTwo(i); j++ {
+			hasher.Reset()
+			_, err := hasher.Write(nodes[i+1][j*2])
+			if err != nil {
+				panic("Error writing node " + strconv.Itoa(j*2) + " to hasher: " + err.Error())
+			}
+			_, err = hasher.Write(nodes[i+1][j*2+1])
+			if err != nil {
+				panic("Error writing node " + strconv.Itoa(j*2+1) + " to hasher: " + err.Error())
+			}
+			nodes[i][j] = hasher.Sum(nil)
+		}
+	}
+	return nodes
+}
+
+func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
+	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
+}
+
+// ComputeMerklePath computes the MerklePath of a hash at a particular bottom level position in a group
+// of merkle nodes for a merkle tree.
+func ComputeMerklePath(position int, nodes [][]Hash) []Hash {
+	treeDepth := len(nodes) - 1
+	if position < 0 || position >= PowOfTwo(treeDepth) {
+		panic("position is out of bounds - should be in range 0 to " + strconv.Itoa(PowOfTwo(treeDepth)-1) + " inclusive")
+	}
+
+	path := make([]Hash, 0, treeDepth)
+	currPos := position
+	for i := treeDepth; i > 0; i-- {
+		if len(nodes[i]) != PowOfTwo(i) {
+			panic("merkle nodes provided are not of correct structure - there should be " + strconv.Itoa(PowOfTwo(i)) + " nodes in layer " + strconv.Itoa(i))
+		}
+
+		// get the sibling of the node at index currPos in the current layer (if even, sibling right after, else right before)
+		if currPos%2 == 0 {
+			path = append(path, nodes[i][currPos+1])
+		} else {
+			path = append(path, nodes[i][currPos-1])
+		}
+
+		// set currPos to index of parent node in layer above (floor divide by 2)
+		currPos /= 2
+	}
+
+	return path
 }
 
 // ConvertGoBalanceToBalance converts a GoBalance to a Balance immediately before inclusion in the circuit.
