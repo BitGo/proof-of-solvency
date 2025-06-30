@@ -82,7 +82,7 @@ func TestVerifyProofFails(t *testing.T) {
 	// invalid proof data
 	invalidProof := CompletedProof{
 		Proof:                      "dummy",
-		VK:                         "stuff",
+		VerificationKey:            "stuff",
 		MerkleRoot:                 []byte{0x56, 0x78},
 		MerkleRootWithAssetSumHash: []byte{0x9a, 0xbc},
 	}
@@ -97,7 +97,7 @@ func TestVerifyProofFails(t *testing.T) {
 
 	// modified verification key
 	proofLowerModifiedVK := proofLower0
-	proofLowerModifiedVK.VK = "invalidVKdataThatWillFail"
+	proofLowerModifiedVK.VerificationKey = "invalidVKdataThatWillFail"
 
 	// modifying the proof string itself
 	modifiedProof := proofLower0

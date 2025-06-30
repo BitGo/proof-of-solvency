@@ -43,11 +43,12 @@ type RawProofElements struct {
 
 // CompletedProof is an output of the prover. It contains the proof, public data, and (optionally) the full list of merkle nodes (hashes).
 // It can be published if it meets the following criteria:
-//  1. If this is a top level proof, the AssetSum & MerklePath are set to nil and MerklePosition is 0; otherwise all three are properly defined.
-//  2. The MerkleNode field has been set to nil (we don't want to publish all the hashes).
+//  1. If this is a top level proof, the MerklePath are set to nil, MerklePosition is 0, and AssetSum is properly defined.
+//  2. If this is not a top level proof, the MerklePath and MerklePosition are properly defined, and AssetSum is nil.
+//  3. The MerkleNode field has been set to nil (we don't want to publish all the hashes).
 type CompletedProof struct {
 	Proof                      string
-	VK                         string
+	VerificationKey            string
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
 
@@ -142,7 +143,7 @@ func generateProof(elements ProofElements) CompletedProof {
 	// construct and return completed proof (do not init MerklePath or MerklePosition as we don't know the upper level proof)
 	return CompletedProof{
 		Proof:                      base64.StdEncoding.EncodeToString(proofBytes.Bytes()),
-		VK:                         base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
+		VerificationKey:            base64.StdEncoding.EncodeToString(vkBytes.Bytes()),
 		MerkleRoot:                 elements.MerkleRoot,
 		MerkleRootWithAssetSumHash: elements.MerkleRootWithAssetSumHash,
 		MerkleNodes:                circuit.GoComputeMerkleTreeNodesFromAccounts(elements.Accounts),

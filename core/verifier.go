@@ -44,7 +44,7 @@ func verifyProof(proof CompletedProof) error {
 
 	// read verification key bytes into groth16 vk instance
 	grothVK := groth16.NewVerifyingKey(ecc.BN254)
-	vkBytes, err := base64.StdEncoding.DecodeString(proof.VK)
+	vkBytes, err := base64.StdEncoding.DecodeString(proof.VerificationKey)
 	if err != nil {
 		return fmt.Errorf("Error decoding verification key: %v", err)
 	}

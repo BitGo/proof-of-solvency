@@ -333,7 +333,7 @@ func TestReadDataFromFile(t *testing.T) {
 		// Create CompletedProof and write to file
 		original := CompletedProof{
 			Proof:                      "AAAA",
-			VK:                         "BBBB",
+			VerificationKey:            "BBBB",
 			MerklePath:                 []Hash{{1, 2, 3, 4}, {5, 6, 7, 8}},
 			MerkleNodes:                [][]Hash{{{1, 2, 3, 4}, {5, 6, 7, 8}}},
 			MerkleRoot:                 []byte{10, 11, 12, 13},
@@ -350,8 +350,8 @@ func TestReadDataFromFile(t *testing.T) {
 		result := ReadDataFromFile[CompletedProof](filePath)
 
 		// Verify it's properly read
-		if result.Proof != "AAAA" || result.VK != "BBBB" {
-			t.Errorf("Proof or VK not read correctly")
+		if result.Proof != "AAAA" || result.VerificationKey != "BBBB" {
+			t.Errorf("Proof or VerificationKey not read correctly")
 		}
 
 		// Verify MerklePath
@@ -419,7 +419,7 @@ func TestReadDataFromFiles(t *testing.T) {
 	// First create two completed proof files
 	proof1 := CompletedProof{
 		Proof:                      "TestProof1",
-		VK:                         "TestVK1",
+		VerificationKey:            "TestVK1",
 		MerklePath:                 []Hash{{1, 2, 3}},
 		MerkleNodes:                [][]Hash{{{1, 2, 3}}},
 		MerkleRoot:                 []byte{10, 11, 12},
@@ -428,7 +428,7 @@ func TestReadDataFromFiles(t *testing.T) {
 
 	proof2 := CompletedProof{
 		Proof:                      "TestProof2",
-		VK:                         "TestVK2",
+		VerificationKey:            "TestVK2",
 		MerklePath:                 []Hash{{4, 5, 6}},
 		MerkleNodes:                [][]Hash{{{4, 5, 6}}},
 		MerkleRoot:                 []byte{13, 14, 15},
@@ -452,12 +452,12 @@ func TestReadDataFromFiles(t *testing.T) {
 		}
 
 		// Verify first proof data
-		if proofs[0].Proof != "TestProof1" || proofs[0].VK != "TestVK1" {
+		if proofs[0].Proof != "TestProof1" || proofs[0].VerificationKey != "TestVK1" {
 			t.Errorf("First proof not read correctly")
 		}
 
 		// Verify second proof data
-		if proofs[1].Proof != "TestProof2" || proofs[1].VK != "TestVK2" {
+		if proofs[1].Proof != "TestProof2" || proofs[1].VerificationKey != "TestVK2" {
 			t.Errorf("Second proof not read correctly")
 		}
 
@@ -530,7 +530,7 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 		// Create test data
 		original := CompletedProof{
 			Proof:                      "TestProof",
-			VK:                         "TestVK",
+			VerificationKey:            "TestVK",
 			MerklePath:                 []Hash{{1, 2, 3}, {4, 5, 6}},
 			MerkleNodes:                [][]Hash{{{1, 2, 3}, {4, 5, 6}}},
 			MerkleRoot:                 []byte{10, 11, 12},
@@ -547,7 +547,7 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 		result := ReadDataFromFile[CompletedProof](filePath)
 
 		// Verify fields match
-		if result.Proof != original.Proof || result.VK != original.VK {
+		if result.Proof != original.Proof || result.VerificationKey != original.VerificationKey {
 			t.Errorf("Proof or VK doesn't match after round-trip")
 		}
 
@@ -564,7 +564,7 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 
 		// Verify MerkleNodes match
 		if len(result.MerkleNodes) != len(original.MerkleNodes) {
-			t.Errorf("MerkleNodes length doesn't match after round-trip") 
+			t.Errorf("MerkleNodes length doesn't match after round-trip")
 		}
 
 		// Verify MerkleRoot and MerkleRootWithAssetSumHash
