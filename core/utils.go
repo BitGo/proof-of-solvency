@@ -120,8 +120,7 @@ func readJson(filePath string, data interface{}) error {
 func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | UserVerificationElements](filePath string) D {
 	var data D
 
-	// if reading GoAccount, ProofElements, or UserVerificationElements, first read as the corresponding
-	// raw data interface, then convert to the actual interface
+	// if data must be read in a "raw" format, handle the conversion accordingly
 	switch any(data).(type) {
 	case circuit.GoAccount:
 		var rawData circuit.RawGoAccount
@@ -133,15 +132,83 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
 	case UserVerificationElements:
 		var rawUserElements struct {
-			AccountData    circuit.RawGoAccount
-			MerklePath     []Hash
-			MerklePosition int
+			AccountInfo circuit.RawGoAccount
+			ProofInfo   struct {
+				UserMerklePath     []Hash
+				UserMerklePosition int
+				BottomProof        struct {
+					Proof                      string
+					VerificationKey            string
+					MerkleRoot                 []byte
+					MerkleRootWithAssetSumHash []byte
+					MerklePath                 []Hash
+					MerklePosition             int
+				}
+				MiddleProof struct {
+					Proof                      string
+					VerificationKey            string
+					MerkleRoot                 []byte
+					MerkleRootWithAssetSumHash []byte
+					MerklePath                 []Hash
+					MerklePosition             int
+				}
+				TopProof struct {
+					Proof                      string
+					VerificationKey            string
+					MerkleRoot                 []byte
+					MerkleRootWithAssetSumHash []byte
+					AssetSum                   *[]string
+				}
+			}
 		}
 		panicOnError(readJson(filePath, &rawUserElements), "error reading raw user verification elements from file")
+
+		// convert the top proof's asset sum to a circuit.GoBalance
+		var actualTopProofAssetSum *circuit.GoBalance
+		if rawUserElements.ProofInfo.TopProof.AssetSum == nil {
+			panic("reading user verification elements failed: TopProof.AssetSum is nil")
+		} else {
+			convertedAssetSum := make(circuit.GoBalance, len(*rawUserElements.ProofInfo.TopProof.AssetSum))
+			for i, asset := range *rawUserElements.ProofInfo.TopProof.AssetSum {
+				bigIntValue, ok := new(big.Int).SetString(asset, 10)
+				if !ok {
+					panic("Error converting asset sum string to big.Int: " + asset)
+				}
+				convertedAssetSum[i] = bigIntValue
+			}
+			actualTopProofAssetSum = &convertedAssetSum
+		}
+
+		// construct the UserVerificationElements from the raw data
 		actualUserElements := UserVerificationElements{
-			AccountData:    circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountData),
-			MerklePath:     rawUserElements.MerklePath,
-			MerklePosition: rawUserElements.MerklePosition,
+			AccountInfo: circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountInfo),
+			ProofInfo: UserProofInfo{
+				UserMerklePath:     rawUserElements.ProofInfo.UserMerklePath,
+				UserMerklePosition: rawUserElements.ProofInfo.UserMerklePosition,
+				BottomProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.BottomProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.BottomProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.BottomProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.BottomProof.MerkleRootWithAssetSumHash,
+					MerklePath:                 rawUserElements.ProofInfo.BottomProof.MerklePath,
+					MerklePosition:             rawUserElements.ProofInfo.BottomProof.MerklePosition,
+				},
+				MiddleProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.MiddleProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.MiddleProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.MiddleProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.MiddleProof.MerkleRootWithAssetSumHash,
+					MerklePath:                 rawUserElements.ProofInfo.MiddleProof.MerklePath,
+					MerklePosition:             rawUserElements.ProofInfo.MiddleProof.MerklePosition,
+				},
+				TopProof: CompletedProof{
+					Proof:                      rawUserElements.ProofInfo.TopProof.Proof,
+					VerificationKey:            rawUserElements.ProofInfo.TopProof.VerificationKey,
+					MerkleRoot:                 rawUserElements.ProofInfo.TopProof.MerkleRoot,
+					MerkleRootWithAssetSumHash: rawUserElements.ProofInfo.TopProof.MerkleRootWithAssetSumHash,
+					AssetSum:                   actualTopProofAssetSum,
+				},
+			},
 		}
 		return any(actualUserElements).(D)
 	case CompletedProof:
