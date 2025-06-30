@@ -59,6 +59,18 @@ type CompletedProof struct {
 	AssetSum       *circuit.GoBalance
 }
 
+// RawCompletedProof is a raw version of CompletedProof that is read from and written to files.
+type RawCompletedProof struct {
+	Proof                      string
+	VerificationKey            string
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+	MerklePath                 []Hash
+	MerklePosition             int
+	MerkleNodes                [][]Hash
+	AssetSum                   *[]string
+}
+
 // cachedProofs means that we do not need to recompile the same Circuit repeatedly.
 var cachedProofs = make(map[int]PartialProof)
 

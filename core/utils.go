@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"math/big"
 	"os"
 	"strconv"
 
@@ -58,20 +59,45 @@ func WriteDataToFile[D ProofElements | CompletedProof | circuit.GoAccount](fileP
 	// then write to file
 	switch v := any(data).(type) {
 	case circuit.GoAccount:
-		err := writeJson(filePath, circuit.ConvertGoAccountToRawGoAccount(v))
-		if err != nil {
-			panic("Error writing raw go account to file: " + err.Error())
-		}
+		panicOnError(
+			writeJson(filePath, circuit.ConvertGoAccountToRawGoAccount(v)),
+			"error writing raw go account to file",
+		)
 	case ProofElements:
-		err := writeJson(filePath, ConvertProofElementsToRawProofElements(v))
-		if err != nil {
-			panic("Error writing raw proof elements to file: " + err.Error())
+		panicOnError(
+			writeJson(filePath, ConvertProofElementsToRawProofElements(v)),
+			"error writing raw proof elements to file",
+		)
+	case CompletedProof:
+		// convert the asset sum to a slice of strings before writing
+		var rawAssetSum *[]string
+		if v.AssetSum != nil {
+			convertedAssetSum := make([]string, len(*v.AssetSum))
+			for i, asset := range *v.AssetSum {
+				convertedAssetSum[i] = asset.String()
+			}
+			rawAssetSum = &convertedAssetSum
+		} else {
+			rawAssetSum = nil
 		}
+
+		rawCompletedProof := RawCompletedProof{
+			Proof:                      v.Proof,
+			VerificationKey:            v.VerificationKey,
+			MerkleRoot:                 v.MerkleRoot,
+			MerkleRootWithAssetSumHash: v.MerkleRootWithAssetSumHash,
+			MerklePath:                 v.MerklePath,
+			MerklePosition:             v.MerklePosition,
+			MerkleNodes:                v.MerkleNodes,
+			AssetSum:                   rawAssetSum,
+		}
+
+		panicOnError(
+			writeJson(filePath, rawCompletedProof),
+			"error writing raw completed proof to file",
+		)
 	default:
-		err := writeJson(filePath, data)
-		if err != nil {
-			panic("Error writing completed proof to file: " + err.Error())
-		}
+		panicOnError(writeJson(filePath, data), "error writing data to file")
 	}
 }
 
@@ -118,6 +144,47 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 			MerklePosition: rawUserElements.MerklePosition,
 		}
 		return any(actualUserElements).(D)
+	case CompletedProof:
+		var rawCompletedProof struct {
+			Proof                      string
+			VerificationKey            string
+			MerkleRoot                 []byte
+			MerkleRootWithAssetSumHash []byte
+			MerklePath                 []Hash
+			MerklePosition             int
+			MerkleNodes                [][]Hash
+			AssetSum                   *[]string
+		}
+		panicOnError(readJson(filePath, &rawCompletedProof), "error reading raw completed proof from file")
+
+		// convert the raw asset sum to a circuit.GoBalance
+		var actualAssetSum *circuit.GoBalance
+		if rawCompletedProof.AssetSum == nil {
+			actualAssetSum = nil
+		} else {
+			convertedAssetSum := make(circuit.GoBalance, len(*rawCompletedProof.AssetSum))
+			for i, asset := range *rawCompletedProof.AssetSum {
+				bigIntValue, ok := new(big.Int).SetString(asset, 10)
+				if !ok {
+					panic("Error converting asset sum string to big.Int: " + asset)
+				}
+				convertedAssetSum[i] = bigIntValue
+			}
+			actualAssetSum = &convertedAssetSum
+		}
+
+		actualCompletedProof := CompletedProof{
+			Proof:                      rawCompletedProof.Proof,
+			VerificationKey:            rawCompletedProof.VerificationKey,
+			MerkleRoot:                 rawCompletedProof.MerkleRoot,
+			MerkleRootWithAssetSumHash: rawCompletedProof.MerkleRootWithAssetSumHash,
+			MerklePath:                 rawCompletedProof.MerklePath,
+			MerklePosition:             rawCompletedProof.MerklePosition,
+			MerkleNodes:                rawCompletedProof.MerkleNodes,
+			AssetSum:                   actualAssetSum,
+		}
+		return any(actualCompletedProof).(D)
+
 	default:
 		err := readJson(filePath, &data)
 		if err != nil {
