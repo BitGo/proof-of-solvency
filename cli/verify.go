@@ -33,8 +33,8 @@ var verifyCmd = &cobra.Command{
 }
 
 var userVerifyCmd = &cobra.Command{
-	Use:   "userverify [path/to/useraccount.json] [path/to/bottomlevelproof.json] [path/to/midlevelproof.json] [path/to/toplevelproof.json]",
-	Short: "Verify the provided user account was included in the proofs and the proofs are valid.",
+	Use:   "userverify [path/to/userinfo.json]",
+	Short: "Verify the provided user account was included in the provided proofs and proofs are valid.",
 	Long: "Verifies the provided user account was included in the provided proofs and proofs are valid.\n" +
 		"This is the main verification tool by which one can verify they were included in the total liability sum and no negative accounts were included in the sum.\n" +
 		"Verifies:\n" +
@@ -42,17 +42,15 @@ var userVerifyCmd = &cobra.Command{
 		"2) The bottom level proof provided was included in the mid level proof provided\n" +
 		"3) The mid level proof provided was included in the top level proof provided\n" +
 		"4) The top level proof provided matches the asset sum published\n" +
-		"5) The chain of proofs is valid (i.e., your account was included in the asset sum for the low level proof, " +
-		"the low level proof was included in the asset sum for the mid level proof, " +
-		"the mid level proof was included in the asset sum for the high level proof, and " +
-		"there were no accounts with overflowing balances or negative balances included in any of the asset sums.",
+		"5) The chain of proofs is valid, meaning:\n" +
+		"---> Your account was included in the asset sum for the low level proof.\n" +
+		"---> The low level proof was included in the asset sum for the mid level proof.\n" +
+		"---> The mid level proof was included in the asset sum for the high level proof.\n" +
+		"---> There were no accounts with overflowing balances or negative balances included in any of the asset sums.",
 	Args: cobra.ExactArgs(4),
 	Run: func(cmd *cobra.Command, args []string) {
 		userVerificationElements := core.ReadDataFromFile[core.UserVerificationElements](args[0])
-		bottomLevelProof := core.ReadDataFromFile[core.CompletedProof](args[1])
-		midLevelProof := core.ReadDataFromFile[core.CompletedProof](args[2])
-		topLevelProof := core.ReadDataFromFile[core.CompletedProof](args[3])
-		core.VerifyUser(userVerificationElements, bottomLevelProof, midLevelProof, topLevelProof)
+		core.VerifyUser(userVerificationElements)
 		println("User verification succeeded!")
 	},
 }
