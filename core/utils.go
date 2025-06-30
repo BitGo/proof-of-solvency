@@ -150,9 +150,22 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 			actualTopProofAssetSum = &convertedAssetSum
 		}
 
+		// convert user account balance from []string to circuit.GoBalance
+		convertedBalance := make(circuit.GoBalance, len(rawUserElements.AccountInfo.Balance))
+		for i, asset := range rawUserElements.AccountInfo.Balance {
+			bigIntValue, ok := new(big.Int).SetString(asset, 10)
+			if !ok {
+				panic("Error converting account balance string to big.Int: " + asset)
+			}
+			convertedBalance[i] = bigIntValue
+		}
+
 		// construct the UserVerificationElements from the raw data
 		actualUserElements := UserVerificationElements{
-			AccountInfo: circuit.ConvertRawGoAccountToGoAccount(rawUserElements.AccountInfo),
+			AccountInfo: circuit.ConvertRawGoAccountToGoAccount(circuit.RawGoAccount{
+				UserId:  rawUserElements.AccountInfo.UserId,
+				Balance: convertedBalance,
+			}),
 			ProofInfo: UserProofInfo{
 				UserMerklePath:     rawUserElements.ProofInfo.UserMerklePath,
 				UserMerklePosition: rawUserElements.ProofInfo.UserMerklePosition,
