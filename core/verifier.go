@@ -13,10 +13,17 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
+type UserProofInfo struct {
+	UserMerklePath     []Hash
+	UserMerklePosition int
+	BottomProof        CompletedProof
+	MiddleProof        CompletedProof
+	TopProof           CompletedProof
+}
+
 type UserVerificationElements struct {
-	AccountData    circuit.GoAccount
-	MerklePath     []Hash
-	MerklePosition int
+	AccountInfo circuit.GoAccount
+	ProofInfo   UserProofInfo
 }
 
 // verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
@@ -150,38 +157,60 @@ func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
 	return nil
 }
 
-// VerifyProofPath is the flagship verification method.
-// VerifyProofPath verifies that the account hash is included in the bottom layer proof's MerkleRoot,
-// that the account balance is included in the *secret* bottomLayerProof.AssetSum,
-// that the bottom layer proof MerkleTree and *secret* AssetSum hash to bottomLayerProof.MerkleRootWithAssetSumHash,
-// that the bottom layer proof's MerkleRootWithAssetSumHash is included in the mid layer proof's MerkleRoot,
-// and repeat the earlier steps for the mid and top layer proofs.
+// VerifyUser is the primary verification method for a user.
+// It verifies that the provided user account is included in the bottom layer proof,
+// that the bottom layer proof is included in the mid layer proof, and that the mid layer
+// proof is included in the top layer proof, and that all the proofs are valid.
 // It also verifies that the top layer proof's MerkleRootWithAssetSumHash matches the MerkleRoot and published AssetSum.
-func VerifyUser(userInfo UserVerificationElements, bottomLayerProof CompletedProof, midLayerProof CompletedProof, topLayerProof CompletedProof) {
+func VerifyUser(userVerifElements UserVerificationElements) {
+
+	// extract proofs from verification elements
+	bottomProof := &userVerifElements.ProofInfo.BottomProof
+	middleProof := &userVerifElements.ProofInfo.MiddleProof
+	topProof := &userVerifElements.ProofInfo.TopProof
+
 	// create hash of account
-	accountHash := circuit.GoComputeMiMCHashForAccount(userInfo.AccountData)
+	accountHash := circuit.GoComputeMiMCHashForAccount(userVerifElements.AccountInfo)
 
 	// verify proofs
-	panicOnError(verifyProof(bottomLayerProof), "bottom layer proof verification failed")
-	panicOnError(verifyProof(midLayerProof), "mid layer proof verification failed")
-	panicOnError(verifyProof(topLayerProof), "top layer proof verification failed")
+	panicOnError(verifyProof(*bottomProof), "bottom layer proof verification failed")
+	panicOnError(verifyProof(*middleProof), "mid layer proof verification failed")
+	panicOnError(verifyProof(*topProof), "top layer proof verification failed")
 
 	// verify inclusion of account -> bottom proof -> middle proof -> top
 	panicOnError(
-		verifyMerklePath(accountHash, userInfo.MerklePosition, userInfo.MerklePath, bottomLayerProof.MerkleRoot),
+		verifyMerklePath(
+			accountHash,
+			userVerifElements.ProofInfo.UserMerklePosition,
+			userVerifElements.ProofInfo.UserMerklePath,
+			bottomProof.MerkleRoot,
+		),
 		"failed to verify if account included in bottom proof",
 	)
 	panicOnError(
-		verifyMerklePath(bottomLayerProof.MerkleRootWithAssetSumHash, bottomLayerProof.MerklePosition, bottomLayerProof.MerklePath, midLayerProof.MerkleRoot),
+		verifyMerklePath(
+			bottomProof.MerkleRootWithAssetSumHash,
+			bottomProof.MerklePosition,
+			bottomProof.MerklePath,
+			middleProof.MerkleRoot,
+		),
 		"failed to verify if bottom proof included in middle proof",
 	)
 	panicOnError(
-		verifyMerklePath(midLayerProof.MerkleRootWithAssetSumHash, midLayerProof.MerklePosition, midLayerProof.MerklePath, topLayerProof.MerkleRoot),
+		verifyMerklePath(
+			middleProof.MerkleRootWithAssetSumHash,
+			middleProof.MerklePosition,
+			middleProof.MerklePath,
+			topProof.MerkleRoot,
+		),
 		"failed to verify if middle proof included in top proof",
 	)
 
 	// verify top layer asset sum (encoded in MerkleRootWithAssetSumHash) matches the published asset sum
-	panicOnError(verifyTopLayerProofMatchesAssetSum(topLayerProof), "top layer hashed asset sum does not match published asset sum")
+	panicOnError(
+		verifyTopLayerProofMatchesAssetSum(*topProof),
+		"top layer hashed asset sum does not match published asset sum",
+	)
 }
 
 // verifyFull is used to perform full verification of generated proofs.
