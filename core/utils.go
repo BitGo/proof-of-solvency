@@ -131,36 +131,7 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 		panicOnError(readJson(filePath, &rawProofElements), "error reading raw proof elements from file")
 		return any(ConvertRawProofElementsToProofElements(rawProofElements)).(D)
 	case UserVerificationElements:
-		var rawUserElements struct {
-			AccountInfo circuit.RawGoAccount
-			ProofInfo   struct {
-				UserMerklePath     []Hash
-				UserMerklePosition int
-				BottomProof        struct {
-					Proof                      string
-					VerificationKey            string
-					MerkleRoot                 []byte
-					MerkleRootWithAssetSumHash []byte
-					MerklePath                 []Hash
-					MerklePosition             int
-				}
-				MiddleProof struct {
-					Proof                      string
-					VerificationKey            string
-					MerkleRoot                 []byte
-					MerkleRootWithAssetSumHash []byte
-					MerklePath                 []Hash
-					MerklePosition             int
-				}
-				TopProof struct {
-					Proof                      string
-					VerificationKey            string
-					MerkleRoot                 []byte
-					MerkleRootWithAssetSumHash []byte
-					AssetSum                   *[]string
-				}
-			}
-		}
+		var rawUserElements RawUserVerificationElements
 		panicOnError(readJson(filePath, &rawUserElements), "error reading raw user verification elements from file")
 
 		// convert the top proof's asset sum to a circuit.GoBalance
@@ -212,16 +183,7 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 		}
 		return any(actualUserElements).(D)
 	case CompletedProof:
-		var rawCompletedProof struct {
-			Proof                      string
-			VerificationKey            string
-			MerkleRoot                 []byte
-			MerkleRootWithAssetSumHash []byte
-			MerklePath                 []Hash
-			MerklePosition             int
-			MerkleNodes                [][]Hash
-			AssetSum                   *[]string
-		}
+		var rawCompletedProof RawCompletedProof
 		panicOnError(readJson(filePath, &rawCompletedProof), "error reading raw completed proof from file")
 
 		// convert the raw asset sum to a circuit.GoBalance

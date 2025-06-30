@@ -26,6 +26,36 @@ type UserVerificationElements struct {
 	ProofInfo   UserProofInfo
 }
 
+type RawUserVerificationElements struct {
+	AccountInfo circuit.RawGoAccount
+	ProofInfo   RawUserProofInfo
+}
+
+type RawUserProofInfo struct {
+	UserMerklePath     []Hash
+	UserMerklePosition int
+	BottomProof        RawLowerLevelProof
+	MiddleProof        RawLowerLevelProof
+	TopProof           RawTopLevelProof
+}
+
+type RawLowerLevelProof struct {
+	Proof                      string
+	VerificationKey            string
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+	MerklePosition             int
+	MerklePath                 []Hash
+}
+
+type RawTopLevelProof struct {
+	Proof                      string
+	VerificationKey            string
+	MerkleRoot                 []byte
+	MerkleRootWithAssetSumHash []byte
+	AssetSum                   *[]string
+}
+
 // verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
 func verifyProof(proof CompletedProof) error {
 	// first, verify snark
