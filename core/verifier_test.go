@@ -31,18 +31,18 @@ func TestMain(m *testing.M) {
 	os.MkdirAll("testutildata", 0o755)
 
 	// generate test data with batchCount batches of countPerBatch accounts each
-	GenerateData(batchCount, countPerBatch)
+	GenerateData(batchCount, countPerBatch, OUT_DIR)
 
 	// generate proofs for the test data
-	Prove(batchCount)
+	Prove(batchCount, OUT_DIR)
 
 	// read generated proofs and test data files
-	proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
-	proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
-	proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
-	proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
-	testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
-	testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
+	proofLower0 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "0.json")
+	proofLower1 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "1.json")
+	proofMid = ReadDataFromFile[CompletedProof](OUT_DIR + MIDDLE_PROOF_PREFIX + "0.json")
+	proofTop = ReadDataFromFile[CompletedProof](OUT_DIR + TOP_PROOF_PREFIX + "0.json")
+	testData0 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "0.json")
+	testData1 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "1.json")
 
 	// run tests
 	exitCode := m.Run()
@@ -683,5 +683,5 @@ func TestVerifyFull(t *testing.T) {
 
 func TestVerifyFullPublic(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.NotPanics(func() { VerifyFull(batchCount) })
+	assert.NotPanics(func() { VerifyFull(batchCount, OUT_DIR) })
 }

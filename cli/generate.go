@@ -24,7 +24,7 @@ var generateCmd = &cobra.Command{
 			fmt.Println("Error parsing accountsPerBatch:", err)
 			return
 		}
-		core.GenerateData(batchCount, accountsPerBatch)
+		core.GenerateData(batchCount, accountsPerBatch, core.OUT_DIR)
 	},
 }
 

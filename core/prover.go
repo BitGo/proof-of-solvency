@@ -13,6 +13,15 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
 
+// Constants:
+const (
+	OUT_DIR             = "out/"
+	SECRET_DATA_PREFIX  = "secret/batch_"
+	BOTTOM_PROOF_PREFIX = "public/bottom_level_proof_"
+	MIDDLE_PROOF_PREFIX = "public/mid_level_proof_"
+	TOP_PROOF_PREFIX    = "public/top_level_proof_"
+)
+
 // AccountLeaf is a []byte alias for readability.
 type Hash = circuit.Hash
 
@@ -232,9 +241,9 @@ func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLeve
 }
 
 // main proof generation function
-func Prove(batchCount int) {
+func Prove(batchCount int, outDir string) {
 	// bottom level proofs
-	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
+	proofElements := ReadDataFromFiles[ProofElements](batchCount, outDir+SECRET_DATA_PREFIX)
 	bottomLevelProofs := generateProofs(proofElements)
 
 	// mid level proofs
@@ -251,7 +260,7 @@ func Prove(batchCount int) {
 	setLowerLevelProofsMerklePaths(midLevelProofs, []CompletedProof{topLevelProof})
 
 	// write all the proofs to files
-	writeProofsToFiles(bottomLevelProofs, "out/public/test_proof_", false)
-	writeProofsToFiles(midLevelProofs, "out/public/test_mid_level_proof_", false)
-	writeProofsToFiles([]CompletedProof{topLevelProof}, "out/public/test_top_level_proof_", true)
+	writeProofsToFiles(bottomLevelProofs, outDir+BOTTOM_PROOF_PREFIX, false)
+	writeProofsToFiles(midLevelProofs, outDir+MIDDLE_PROOF_PREFIX, false)
+	writeProofsToFiles([]CompletedProof{topLevelProof}, outDir+TOP_PROOF_PREFIX, true)
 }

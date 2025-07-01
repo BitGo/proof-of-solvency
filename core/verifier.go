@@ -307,20 +307,20 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 
 // VerifyFull should primarily be used to perform a full verification of the proofs after running prover.
 // Is a wrapper around the private verifyFull and uses hardcoded file names to read the proofs and accounts from disk.
-func VerifyFull(batchCount int) {
+func VerifyFull(batchCount int, outDir string) {
 
 	// read accounts
-	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
+	proofElements := ReadDataFromFiles[ProofElements](batchCount, outDir+SECRET_DATA_PREFIX)
 	accounts := make([][]circuit.GoAccount, batchCount)
 	for i, proofElement := range proofElements {
 		accounts[i] = proofElement.Accounts
 	}
 
 	// read proofs from files
-	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
+	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, outDir+BOTTOM_PROOF_PREFIX)
 	// the number of mid level proofs is ceil(batchCount / ACCOUNTS_PER_BATCH),
-	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+circuit.ACCOUNTS_PER_BATCH-1)/circuit.ACCOUNTS_PER_BATCH, "out/public/test_mid_level_proof_")
-	topLevelProof := ReadDataFromFiles[CompletedProof](1, "out/public/test_top_level_proof_")[0]
+	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+circuit.ACCOUNTS_PER_BATCH-1)/circuit.ACCOUNTS_PER_BATCH, outDir+MIDDLE_PROOF_PREFIX)
+	topLevelProof := ReadDataFromFiles[CompletedProof](1, outDir+TOP_PROOF_PREFIX)[0]
 
 	// verify
 	verifyFull(bottomLevelProofs, midLevelProofs, topLevelProof, accounts)

@@ -11,7 +11,7 @@ import (
 var verifyCmd = &cobra.Command{
 	Use:   "verify [BatchCount]",
 	Short: "Performs full verification of using the public data in 'out/public/' and the user data in 'out/secret/'",
-	Long: "Performs full verification of all generated proofs using the public data in 'out/public/' and the user data in 'out/user/'.\n" +
+	Long: "Performs full verification of all generated proofs using the public data in 'out/public/' and the user data in 'out/secret/'.\n" +
 		"Intended to be used after proof generation to validate the proofs were generated correctly.\n" +
 		"Verifies: \n" +
 		" 1) Each proof is valid (the zk-SNARK verification passes).\n" +
@@ -27,7 +27,7 @@ var verifyCmd = &cobra.Command{
 			fmt.Println("Error parsing batchCount:", err)
 			return
 		}
-		core.VerifyFull(batchCount)
+		core.VerifyFull(batchCount, core.OUT_DIR)
 		println("Verification succeeded!")
 	},
 }
