@@ -420,7 +420,7 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 1",
+			"Mismatched proofs: top proof of different tree",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -434,7 +434,35 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 2",
+			"Mismatched proofs: middle proof of different tree",
+			UserVerificationElements{
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        altProofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched proofs: bottom proof of different tree",
+			UserVerificationElements{
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        altProofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched proofs: swapped bottom and mid proofs",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -448,7 +476,7 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 3",
+			"Mismatched proofs: different bottom proof of same tree",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -462,11 +490,25 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 4",
+			"Mismatched account: different account of different bottom proof",
 			UserVerificationElements{
 				AccountInfo: testData1.Accounts[4],
 				ProofInfo: UserProofInfo{
 					UserMerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
+					UserMerklePosition: 4,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched account: account of alternative bottom proof",
+			UserVerificationElements{
+				AccountInfo: altTestData0.Accounts[4],
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(4, altProofLower0.MerkleNodes),
 					UserMerklePosition: 4,
 					BottomProof:        proofLower0,
 					MiddleProof:        proofMid,
