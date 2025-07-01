@@ -13,54 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-type UserProofInfo struct {
-	UserMerklePath     []Hash
-	UserMerklePosition int
-	BottomProof        CompletedProof
-	MiddleProof        CompletedProof
-	TopProof           CompletedProof
-}
-
-type UserVerificationElements struct {
-	AccountInfo circuit.GoAccount
-	ProofInfo   UserProofInfo
-}
-
-type RawUserVerificationElements struct {
-	AccountInfo RawUserAccountInfo
-	ProofInfo   RawUserProofInfo
-}
-
-type RawUserAccountInfo struct {
-	UserId  string
-	Balance []string
-}
-
-type RawUserProofInfo struct {
-	UserMerklePath     []Hash
-	UserMerklePosition int
-	BottomProof        RawLowerLevelProof
-	MiddleProof        RawLowerLevelProof
-	TopProof           RawTopLevelProof
-}
-
-type RawLowerLevelProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-	MerklePosition             int
-	MerklePath                 []Hash
-}
-
-type RawTopLevelProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-	AssetSum                   *[]string
-}
-
 // verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
 func verifyProof(proof CompletedProof) error {
 	// first, verify snark
