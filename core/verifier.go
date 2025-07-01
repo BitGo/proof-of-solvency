@@ -208,7 +208,7 @@ func VerifyUser(userVerifElements UserVerificationElements) {
 // and in the same order they were fed into the proof generator, both at batch level and individual level.
 func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProof CompletedProof, accountBatches [][]circuit.GoAccount) {
 
-	// bottom level proofs (verify merkle nodes, proof, merkle path)
+	// bottom level proofs (verify merkle nodes, proofs, merkle paths)
 	for i, bottomProof := range bottomLevelProofs {
 		panicOnError(
 			verifyBuild(bottomProof.MerkleNodes, bottomProof.MerkleRoot, circuit.TREE_DEPTH),
@@ -226,12 +226,8 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 	}
 
-	// mid level proofs (verify merkle nodes, proof, merkle path)
+	// mid level proofs (verify proofs, merkle paths)
 	for i, middleProof := range midLevelProofs {
-		panicOnError(
-			verifyBuild(middleProof.MerkleNodes, middleProof.MerkleRoot, circuit.TREE_DEPTH),
-			fmt.Sprintf("merkle nodes for mid level proof %d inconsistent with its merkle root", i),
-		)
 		panicOnError(verifyProof(middleProof), fmt.Sprintf("circuit verification failed for mid level proof %d", i))
 		panicOnError(
 			verifyMerklePath(middleProof.MerkleRootWithAssetSumHash, middleProof.MerklePosition, middleProof.MerklePath, topLevelProof.MerkleRoot),
@@ -239,8 +235,7 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 	}
 
-	// top level proof (verify merkle nodes and proof)
-	panicOnError(verifyBuild(topLevelProof.MerkleNodes, topLevelProof.MerkleRoot, circuit.TREE_DEPTH), "merkle nodes for top level proof inconsistent with merkle root")
+	// top level proof
 	panicOnError(verifyProof(topLevelProof), "top level proof circuit verification failed")
 
 	// verify account inclusion

@@ -117,10 +117,13 @@ func generateProofs(proofElements []ProofElements) []CompletedProof {
 // saveAssetSum should be set to true only for top level proofs, because
 // otherwise the asset sum may leak information about the balance composition of each batch
 // of accounts.
-func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool) {
+func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool, saveMerkleNodes bool) {
 	for i, proof := range proofs {
 		if !saveAssetSum {
 			proof.AssetSum = nil
+		}
+		if !saveMerkleNodes {
+			proof.MerkleNodes = nil
 		}
 		filePath := prefix + strconv.Itoa(i) + ".json"
 		WriteDataToFile(filePath, proof)
@@ -192,7 +195,7 @@ func Prove(batchCount int, outDir string) {
 	setLowerLevelProofsMerklePaths(midLevelProofs, []CompletedProof{topLevelProof})
 
 	// write all the proofs to files
-	writeProofsToFiles(bottomLevelProofs, outDir+BOTTOM_PROOF_PREFIX, false)
-	writeProofsToFiles(midLevelProofs, outDir+MIDDLE_PROOF_PREFIX, false)
-	writeProofsToFiles([]CompletedProof{topLevelProof}, outDir+TOP_PROOF_PREFIX, true)
+	writeProofsToFiles(bottomLevelProofs, outDir+BOTTOM_PROOF_PREFIX, false, true)
+	writeProofsToFiles(midLevelProofs, outDir+MIDDLE_PROOF_PREFIX, false, false)
+	writeProofsToFiles([]CompletedProof{topLevelProof}, outDir+TOP_PROOF_PREFIX, true, false)
 }
