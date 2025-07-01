@@ -13,54 +13,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 )
 
-type UserProofInfo struct {
-	UserMerklePath     []Hash
-	UserMerklePosition int
-	BottomProof        CompletedProof
-	MiddleProof        CompletedProof
-	TopProof           CompletedProof
-}
-
-type UserVerificationElements struct {
-	AccountInfo circuit.GoAccount
-	ProofInfo   UserProofInfo
-}
-
-type RawUserVerificationElements struct {
-	AccountInfo RawUserAccountInfo
-	ProofInfo   RawUserProofInfo
-}
-
-type RawUserAccountInfo struct {
-	UserId  string
-	Balance []string
-}
-
-type RawUserProofInfo struct {
-	UserMerklePath     []Hash
-	UserMerklePosition int
-	BottomProof        RawLowerLevelProof
-	MiddleProof        RawLowerLevelProof
-	TopProof           RawTopLevelProof
-}
-
-type RawLowerLevelProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-	MerklePosition             int
-	MerklePath                 []Hash
-}
-
-type RawTopLevelProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-	AssetSum                   *[]string
-}
-
 // verifyProof verifies that the proof is valid - returns nil if verification passes, error if it fails
 func verifyProof(proof CompletedProof) error {
 	// first, verify snark
@@ -106,10 +58,10 @@ func verifyProof(proof CompletedProof) error {
 
 // verifyMerklePath verifies that a particular hash and merkle path lead to the given merkle root
 func verifyMerklePath(hash Hash, hashPosition int, path []Hash, root Hash) error {
-	if len(path) != circuit.TreeDepth {
-		return fmt.Errorf("merkle path is not of depth of tree: expected length %d, found %d", circuit.TreeDepth, len(path))
+	if len(path) != circuit.TREE_DEPTH {
+		return fmt.Errorf("merkle path is not of depth of tree: expected length %d, found %d", circuit.TREE_DEPTH, len(path))
 	}
-	if hashPosition < 0 || hashPosition >= circuit.PowOfTwo(circuit.TreeDepth) {
+	if hashPosition < 0 || hashPosition >= circuit.PowOfTwo(circuit.TREE_DEPTH) {
 		return fmt.Errorf("hashPosition out of bounds")
 	}
 
@@ -256,25 +208,26 @@ func VerifyUser(userVerifElements UserVerificationElements) {
 // and in the same order they were fed into the proof generator, both at batch level and individual level.
 func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProof CompletedProof, accountBatches [][]circuit.GoAccount) {
 
-	// bottom level proofs (verify merkle nodes, proof, merkle path)
+	// bottom level proofs (verify merkle nodes, proofs, merkle paths)
 	for i, bottomProof := range bottomLevelProofs {
 		panicOnError(
-			verifyBuild(bottomProof.MerkleNodes, bottomProof.MerkleRoot, circuit.TreeDepth),
+			verifyBuild(bottomProof.MerkleNodes, bottomProof.MerkleRoot, circuit.TREE_DEPTH),
 			fmt.Sprintf("merkle nodes for bottom level proof %d inconsistent with its merkle root", i),
 		)
 		panicOnError(verifyProof(bottomProof), fmt.Sprintf("circuit verification failed for bottom level proof %d", i))
 		panicOnError(
-			verifyMerklePath(bottomProof.MerkleRootWithAssetSumHash, bottomProof.MerklePosition, bottomProof.MerklePath, midLevelProofs[i/1024].MerkleRoot),
+			verifyMerklePath(
+				bottomProof.MerkleRootWithAssetSumHash,
+				bottomProof.MerklePosition,
+				bottomProof.MerklePath,
+				midLevelProofs[i/circuit.ACCOUNTS_PER_BATCH].MerkleRoot,
+			),
 			fmt.Sprintf("merkle path verification failed for bottom level proof %d", i),
 		)
 	}
 
-	// mid level proofs (verify merkle nodes, proof, merkle path)
+	// mid level proofs (verify proofs, merkle paths)
 	for i, middleProof := range midLevelProofs {
-		panicOnError(
-			verifyBuild(middleProof.MerkleNodes, middleProof.MerkleRoot, circuit.TreeDepth),
-			fmt.Sprintf("merkle nodes for mid level proof %d inconsistent with its merkle root", i),
-		)
 		panicOnError(verifyProof(middleProof), fmt.Sprintf("circuit verification failed for mid level proof %d", i))
 		panicOnError(
 			verifyMerklePath(middleProof.MerkleRootWithAssetSumHash, middleProof.MerklePosition, middleProof.MerklePath, topLevelProof.MerkleRoot),
@@ -282,15 +235,14 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 	}
 
-	// top level proof (verify merkle nodes and proof)
-	panicOnError(verifyBuild(topLevelProof.MerkleNodes, topLevelProof.MerkleRoot, circuit.TreeDepth), "merkle nodes for top level proof inconsistent with merkle root")
+	// top level proof
 	panicOnError(verifyProof(topLevelProof), "top level proof circuit verification failed")
 
 	// verify account inclusion
 	for i, batch := range accountBatches {
 		for j, account := range batch {
 			accountHash := circuit.GoComputeMiMCHashForAccount(account)
-			if !bytes.Equal(accountHash, bottomLevelProofs[i].MerkleNodes[circuit.TreeDepth][j]) {
+			if !bytes.Equal(accountHash, bottomLevelProofs[i].MerkleNodes[circuit.TREE_DEPTH][j]) {
 				panic(fmt.Sprintf("account %d of batch %d not found in bottom level proofs (or accounts not given in the order given to prover)", j, i))
 			}
 		}
@@ -302,20 +254,20 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 
 // VerifyFull should primarily be used to perform a full verification of the proofs after running prover.
 // Is a wrapper around the private verifyFull and uses hardcoded file names to read the proofs and accounts from disk.
-func VerifyFull(batchCount int) {
+func VerifyFull(batchCount int, outDir string) {
 
 	// read accounts
-	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
+	proofElements := ReadDataFromFiles[ProofElements](batchCount, outDir+SECRET_DATA_PREFIX)
 	accounts := make([][]circuit.GoAccount, batchCount)
 	for i, proofElement := range proofElements {
 		accounts[i] = proofElement.Accounts
 	}
 
 	// read proofs from files
-	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
-	// the number of mid level proofs is ceil(batchCount / 1024)
-	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+1023)/1024, "out/public/test_mid_level_proof_")
-	topLevelProof := ReadDataFromFiles[CompletedProof](1, "out/public/test_top_level_proof_")[0]
+	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, outDir+BOTTOM_PROOF_PREFIX)
+	// the number of mid level proofs is ceil(batchCount / ACCOUNTS_PER_BATCH),
+	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+circuit.ACCOUNTS_PER_BATCH-1)/circuit.ACCOUNTS_PER_BATCH, outDir+MIDDLE_PROOF_PREFIX)
+	topLevelProof := ReadDataFromFiles[CompletedProof](1, outDir+TOP_PROOF_PREFIX)[0]
 
 	// verify
 	verifyFull(bottomLevelProofs, midLevelProofs, topLevelProof, accounts)

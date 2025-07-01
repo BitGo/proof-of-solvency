@@ -1,2 +1,7 @@
 .idea
 out/
+alt/
+userinfo.json
+bgproof
+.DS_Store
+.vscode/

@@ -19,7 +19,7 @@ var proveCmd = &cobra.Command{
 			fmt.Println("Error parsing batchCount:", err)
 			return
 		}
-		core.Prove(batchCount)
+		core.Prove(batchCount, core.OUT_DIR)
 	},
 }
 

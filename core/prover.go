@@ -8,68 +8,9 @@ import (
 	"bitgo.com/proof_of_reserves/circuit"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
-
-// AccountLeaf is a []byte alias for readability.
-type Hash = circuit.Hash
-
-// PartialProof contains the results of compiling and setting up a circuit.
-type PartialProof struct {
-	pk groth16.ProvingKey
-	vk groth16.VerifyingKey
-	cs constraint.ConstraintSystem
-}
-
-// ProofElements is an input to the prover. It contains sensitive data and should not be published.
-type ProofElements struct {
-	Accounts []circuit.GoAccount
-	// AssetSum is not optional, but marshalling fails if it is not a pointer.
-	AssetSum                   *circuit.GoBalance
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-}
-
-// RawProofElements is contains all the same items as ProofElements, except the accounts are RawGoAccounts
-// should be used when writing to a json file or reading directly from a json file
-type RawProofElements struct {
-	Accounts                   []circuit.RawGoAccount
-	AssetSum                   *circuit.GoBalance
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-}
-
-// CompletedProof is an output of the prover. It contains the proof, public data, and (optionally) the full list of merkle nodes (hashes).
-// It can be published if it meets the following criteria:
-//  1. If this is a top level proof, the MerklePath are set to nil, MerklePosition is 0, and AssetSum is properly defined.
-//  2. If this is not a top level proof, the MerklePath and MerklePosition are properly defined, and AssetSum is nil.
-//  3. The MerkleNode field has been set to nil (we don't want to publish all the hashes).
-type CompletedProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-
-	// MerklePath, MerklePosition, MerkleNodes, AssetSum are optional, depending on the case.
-	MerklePath     []Hash
-	MerklePosition int
-	MerkleNodes    [][]Hash
-	AssetSum       *circuit.GoBalance
-}
-
-// RawCompletedProof is a raw version of CompletedProof that is read from and written to files.
-type RawCompletedProof struct {
-	Proof                      string
-	VerificationKey            string
-	MerkleRoot                 []byte
-	MerkleRootWithAssetSumHash []byte
-	MerklePath                 []Hash
-	MerklePosition             int
-	MerkleNodes                [][]Hash
-	AssetSum                   *[]string
-}
 
 // cachedProofs means that we do not need to recompile the same Circuit repeatedly.
 var cachedProofs = make(map[int]PartialProof)
@@ -175,11 +116,14 @@ func generateProofs(proofElements []ProofElements) []CompletedProof {
 // writeProofsToFiles writes the proofs to files with the given prefix.
 // saveAssetSum should be set to true only for top level proofs, because
 // otherwise the asset sum may leak information about the balance composition of each batch
-// of 1024 accounts.
-func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool) {
+// of accounts.
+func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool, saveMerkleNodes bool) {
 	for i, proof := range proofs {
 		if !saveAssetSum {
 			proof.AssetSum = nil
+		}
+		if !saveMerkleNodes {
+			proof.MerkleNodes = nil
 		}
 		filePath := prefix + strconv.Itoa(i) + ".json"
 		WriteDataToFile(filePath, proof)
@@ -218,39 +162,40 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 // upper level proofs. Updates contents of lowerLevelProofs directly so nothing is returned.
 func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLevelProofs []CompletedProof) {
 	for i := range lowerLevelProofs {
-		upperLevelProofIndex := i / 1024
+		upperLevelProofIndex := i / circuit.ACCOUNTS_PER_BATCH
 		if upperLevelProofIndex >= len(upperLevelProofs) {
 			panic("not enough upperLevelProofs given for lowerLevelProofs")
 		}
 
-		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(i%1024, upperLevelProofs[upperLevelProofIndex].MerkleNodes)
-		lowerLevelProofs[i].MerklePosition = i % 1024
+		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(
+			i%circuit.ACCOUNTS_PER_BATCH,
+			upperLevelProofs[upperLevelProofIndex].MerkleNodes,
+		)
+		lowerLevelProofs[i].MerklePosition = i % circuit.ACCOUNTS_PER_BATCH
 	}
 }
 
 // main proof generation function
-func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof CompletedProof) {
+func Prove(batchCount int, outDir string) {
 	// bottom level proofs
-	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
-	bottomLevelProofs = generateProofs(proofElements)
+	proofElements := ReadDataFromFiles[ProofElements](batchCount, outDir+SECRET_DATA_PREFIX)
+	bottomLevelProofs := generateProofs(proofElements)
 
 	// mid level proofs
 	midLevelProofs := make([]CompletedProof, 0)
-	for _, batch := range batchProofs(bottomLevelProofs, 1024) {
+	for _, batch := range batchProofs(bottomLevelProofs, circuit.ACCOUNTS_PER_BATCH) {
 		midLevelProofs = append(midLevelProofs, generateNextLevelProofs(batch))
 	}
 
 	// top level proof
-	topLevelProof = generateNextLevelProofs(midLevelProofs)
+	topLevelProof := generateNextLevelProofs(midLevelProofs)
 
 	// set merkle paths of bottom and midlevel proofs
 	setLowerLevelProofsMerklePaths(bottomLevelProofs, midLevelProofs)
 	setLowerLevelProofsMerklePaths(midLevelProofs, []CompletedProof{topLevelProof})
 
 	// write all the proofs to files
-	writeProofsToFiles(bottomLevelProofs, "out/public/test_proof_", false)
-	writeProofsToFiles(midLevelProofs, "out/public/test_mid_level_proof_", false)
-	writeProofsToFiles([]CompletedProof{topLevelProof}, "out/public/test_top_level_proof_", true)
-
-	return bottomLevelProofs, topLevelProof
+	writeProofsToFiles(bottomLevelProofs, outDir+BOTTOM_PROOF_PREFIX, false, true)
+	writeProofsToFiles(midLevelProofs, outDir+MIDDLE_PROOF_PREFIX, false, false)
+	writeProofsToFiles([]CompletedProof{topLevelProof}, outDir+TOP_PROOF_PREFIX, true, false)
 }

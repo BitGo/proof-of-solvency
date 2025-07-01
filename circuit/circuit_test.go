@@ -212,7 +212,7 @@ func TestCircuitPanicsWhenTooManyAccounts(t *testing.T) {
 			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
-	tooMany := PowOfTwo(TreeDepth) + 1
+	tooMany := PowOfTwo(TREE_DEPTH) + 1
 	accounts := make([]Account, tooMany)
 	for i := range accounts {
 		accounts[i].Balance = ConstructBalance()

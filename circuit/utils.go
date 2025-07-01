@@ -7,21 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/mimc"
 	"github.com/consensys/gnark-crypto/hash"
 )
-
-type Hash = []byte
-
-// ModBytes is needed to calculate the number of bytes needed to replicate hashing in the circuit.
-var ModBytes = len(ecc.BN254.ScalarField().Bytes())
-
-// AssetSymbols is an array storing symbols for cryptocurrencies (i.e. mapping indices to cryptocurrencies)
-var AssetSymbols = []string{"ALGO", "ARBETH", "AVAXC", "AVAXP", "BTC", "BCH", "ADA", "CSPR", "TIA",
-	"COREUM", "ATOM", "DASH", "DOGE", "EOS", "ETH", "ETC", "HBAR", "LTC", "NEAR",
-	"OSMO", "DOT", "POLYGON", "SEI", "SOL", "STX", "XLM", "SUI", "TRX", "XRP",
-	"ZEC", "ZETA", "BLD", "BSC", "TON", "COREDAO", "BERA", "TAO", "APT", "XDC", "WEMIX"}
 
 // Getter function to interact with AssetSymbols array
 // (created in case we retrieve AssetSymbols from different source in future)
@@ -31,24 +19,6 @@ func GetNumberOfAssets() int {
 
 func GetAssetSymbols() []string {
 	return AssetSymbols
-}
-
-// GoBalance represents the balance of an account. It can be converted to Balance for use in the circuit
-// through ConvertGoBalanceToBalance.
-type GoBalance []*big.Int
-
-// GoAccount represents an account. It can be converted to Account for use in the circuit
-// through ConvertGoAccountToAccount.
-type GoAccount struct {
-	UserId  []byte
-	Balance GoBalance
-}
-
-// RawGoAccount represents an account read from file (with a string UserId). It can be converted to
-// GoAccount (to manipulate here) through ConvertRawGoAccountToAccount.
-type RawGoAccount struct {
-	UserId  string
-	Balance GoBalance
 }
 
 // padToModBytes returns the bytes of the input value padded to ModBytes length
@@ -127,7 +97,7 @@ func GoComputeHashOfTwoNodes(hasher hash.StateStorer, node1, node2 Hash, label1,
 }
 
 // goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
-// given a particular TreeDepth.
+// given a particular treeDepth.
 func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
 	// preliminary checks
 	if treeDepth < 0 {
@@ -167,9 +137,9 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 }
 
 // GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
-// assuming Merkle Tree of depth TreeDepth.
+// assuming Merkle Tree of depth TREE_DEPTH.
 func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
-	return goComputeMerkleRootFromHashes(hashes, TreeDepth)
+	return goComputeMerkleRootFromHashes(hashes, TREE_DEPTH)
 }
 
 // GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
@@ -222,7 +192,7 @@ func goComputeMerkleTreeNodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 }
 
 func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
-	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
+	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TREE_DEPTH)
 }
 
 // ComputeMerklePath computes the MerklePath of a hash at a particular bottom level position in a group

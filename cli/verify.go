@@ -11,9 +11,8 @@ import (
 var verifyCmd = &cobra.Command{
 	Use:   "verify [BatchCount]",
 	Short: "Performs full verification of using the public data in 'out/public/' and the user data in 'out/secret/'",
-	Long: "Performs full verification of all generated proofs using the public data in 'out/public/' and the user data in 'out/user/'.\n" +
-		"Intended to be used after proof generation to validate the proofs were generated correctly.\n" +
-		"Verifies: \n" +
+	Long: "Performs full verification of all generated proofs using the public data in 'out/public/' and the user data in 'out/secret/'.\n" +
+		"Intended to be used after proof generation to validate the proofs were generated correctly. Verifies: \n" +
 		" 1) Each proof is valid (the zk-SNARK verification passes).\n" +
 		" 2) Each bottom level and mid level proof's merkle path leads to its corresponding upper level proof's merkle root.\n" +
 		" 3) Each proof has merkle nodes that accurately represent the tree of the merkle root.\n" +
@@ -27,7 +26,7 @@ var verifyCmd = &cobra.Command{
 			fmt.Println("Error parsing batchCount:", err)
 			return
 		}
-		core.VerifyFull(batchCount)
+		core.VerifyFull(batchCount, core.OUT_DIR)
 		println("Verification succeeded!")
 	},
 }
@@ -36,8 +35,8 @@ var userVerifyCmd = &cobra.Command{
 	Use:   "userverify [path/to/userinfo.json]",
 	Short: "Verify the provided user account was included in the provided proofs and proofs are valid.",
 	Long: "Verifies the provided user account was included in the provided proofs and proofs are valid.\n" +
-		"This is the main verification tool by which one can verify they were included in the total liability sum and no negative accounts were included in the sum.\n" +
-		"Verifies:\n" +
+		"This is the main verification tool by which one can verify they were included in the total liability sum\n" +
+		"and no negative accounts were included in the sum. Verifies:\n" +
 		"1) The given account was included in the bottom level proof provided\n" +
 		"2) The bottom level proof provided was included in the mid level proof provided\n" +
 		"3) The mid level proof provided was included in the top level proof provided\n" +

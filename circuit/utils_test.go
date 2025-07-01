@@ -185,18 +185,18 @@ func TestGoComputeMerkleRoot(t *testing.T) {
 }
 
 func TestPublicComputeMerkleRootMaxAccountsConstraint(t *testing.T) {
-	// test that more than 1024 accounts causes a panic
+	// test that more than ACCOUNTS_PER_BATCH accounts causes a panic
 	defer func() {
 		if r := recover(); r == nil {
-			t.Errorf("Expected panic with more than 1024 accounts")
+			t.Errorf("Expected panic with more than ACCOUNTS_PER_BATCH accounts")
 		} else if msg, ok := r.(string); !ok || msg != MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE {
 			t.Errorf("Expected panic with message '%v', got: %v", MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE, r)
 		}
 	}()
 
-	// create 1025 accounts (exceeds max)
-	accounts := make([]GoAccount, 1025)
-	for i := 0; i < 1025; i++ {
+	// create ACCOUNTS_PER_BATCH + 1 accounts (exceeds max)
+	accounts := make([]GoAccount, ACCOUNTS_PER_BATCH+1)
+	for i := range accounts {
 		accounts[i] = GoAccount{
 			UserId:  []byte{byte(i % 256)},
 			Balance: ConstructGoBalance(big.NewInt(1), big.NewInt(1)),

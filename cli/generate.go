@@ -10,8 +10,8 @@ import (
 
 var generateCmd = &cobra.Command{
 	Use:   "generate [BatchCount] [AccountsPerBatch]",
-	Short: "Populates 'out/secret/' with test data as well as a dummy account in 'out/user/'",
-	Long:  "Populates 'out/secret/' with test data as well as a dummy account in 'out/user/'. This function takes 2 arguments: the number of batches and the accounts per batch.",
+	Short: "Populates 'out/secret/' with test data.",
+	Long:  "Populates 'out/secret/' with test data. This function takes 2 arguments: the number of batches and the accounts per batch.",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		batchCount, err := strconv.Atoi(args[0])
@@ -24,7 +24,7 @@ var generateCmd = &cobra.Command{
 			fmt.Println("Error parsing accountsPerBatch:", err)
 			return
 		}
-		core.GenerateData(batchCount, accountsPerBatch)
+		core.GenerateData(batchCount, accountsPerBatch, core.OUT_DIR)
 	},
 }
 

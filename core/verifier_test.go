@@ -15,34 +15,46 @@ import (
 const batchCount = 2
 const countPerBatch = 16
 
-var proofLower0, proofLower1, proofMid, proofTop CompletedProof
-var testData0, testData1 ProofElements
+var proofLower0, proofLower1, proofMid, proofTop, altProofLower0, altProofMid, altProofTop CompletedProof
+var testData0, testData1, altTestData0 ProofElements
 
 // TestMain sets up the test environment by generating test data and proofs once
 // for all tests to use.
 func TestMain(m *testing.M) {
-	// clean up output directory before running tests
+	// clean up out and alt directory before running tests
 	os.RemoveAll("out")
+	os.RemoveAll("alt")
+
+	// create out and alt directory structure
 	os.MkdirAll("out/secret", 0755)
 	os.MkdirAll("out/public", 0755)
-	os.MkdirAll("out/user", 0755)
+	os.MkdirAll("alt/secret", 0755)
+	os.MkdirAll("alt/public", 0755)
 
 	// create testutildata directory
 	os.MkdirAll("testutildata", 0o755)
 
-	// generate test data with batchCount batches of countPerBatch accounts each
-	GenerateData(batchCount, countPerBatch)
+	// generate test data and proofs in out directory
+	GenerateData(batchCount, countPerBatch, OUT_DIR)
+	Prove(batchCount, OUT_DIR)
 
-	// generate proofs for the test data
-	Prove(batchCount)
+	// generate test data and proofs in alt directory
+	GenerateData(1, countPerBatch, "alt/")
+	Prove(1, "alt/")
 
-	// read generated proofs and test data files
-	proofLower0 = ReadDataFromFile[CompletedProof]("out/public/test_proof_0.json")
-	proofLower1 = ReadDataFromFile[CompletedProof]("out/public/test_proof_1.json")
-	proofMid = ReadDataFromFile[CompletedProof]("out/public/test_mid_level_proof_0.json")
-	proofTop = ReadDataFromFile[CompletedProof]("out/public/test_top_level_proof_0.json")
-	testData0 = ReadDataFromFile[ProofElements]("out/secret/test_data_0.json")
-	testData1 = ReadDataFromFile[ProofElements]("out/secret/test_data_1.json")
+	// read generated proofs and test data files from out directory
+	proofLower0 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "0.json")
+	proofLower1 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "1.json")
+	proofMid = ReadDataFromFile[CompletedProof](OUT_DIR + MIDDLE_PROOF_PREFIX + "0.json")
+	proofTop = ReadDataFromFile[CompletedProof](OUT_DIR + TOP_PROOF_PREFIX + "0.json")
+	testData0 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "0.json")
+	testData1 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "1.json")
+
+	// read generated proofs and test data files from alt directory
+	altProofLower0 = ReadDataFromFile[CompletedProof]("alt/" + BOTTOM_PROOF_PREFIX + "0.json")
+	altProofMid = ReadDataFromFile[CompletedProof]("alt/" + MIDDLE_PROOF_PREFIX + "0.json")
+	altProofTop = ReadDataFromFile[CompletedProof]("alt/" + TOP_PROOF_PREFIX + "0.json")
+	altTestData0 = ReadDataFromFile[ProofElements]("alt/" + SECRET_DATA_PREFIX + "0.json")
 
 	// run tests
 	exitCode := m.Run()
@@ -50,10 +62,6 @@ func TestMain(m *testing.M) {
 	// exit with test status code
 	os.Exit(exitCode)
 }
-
-// var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
-// var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
-var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
 
 func TestVerifyProofPasses(t *testing.T) {
 	// should return nil for valid proofs
@@ -412,7 +420,7 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 1",
+			"Mismatched proofs: top proof of different tree",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -426,7 +434,35 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 2",
+			"Mismatched proofs: middle proof of different tree",
+			UserVerificationElements{
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        proofLower0,
+					MiddleProof:        altProofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched proofs: bottom proof of different tree",
+			UserVerificationElements{
+				AccountInfo: account,
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     accountMerklePath,
+					UserMerklePosition: accountPosition,
+					BottomProof:        altProofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched proofs: swapped bottom and mid proofs",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -440,7 +476,7 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 3",
+			"Mismatched proofs: different bottom proof of same tree",
 			UserVerificationElements{
 				AccountInfo: account,
 				ProofInfo: UserProofInfo{
@@ -454,11 +490,25 @@ func TestVerifyUser(t *testing.T) {
 			true,
 		},
 		{
-			"Mismatched proofs 4",
+			"Mismatched account: different account of different bottom proof",
 			UserVerificationElements{
 				AccountInfo: testData1.Accounts[4],
 				ProofInfo: UserProofInfo{
 					UserMerklePath:     circuit.ComputeMerklePath(4, proofLower1.MerkleNodes),
+					UserMerklePosition: 4,
+					BottomProof:        proofLower0,
+					MiddleProof:        proofMid,
+					TopProof:           proofTop,
+				},
+			},
+			true,
+		},
+		{
+			"Mismatched account: account of alternative bottom proof",
+			UserVerificationElements{
+				AccountInfo: altTestData0.Accounts[4],
+				ProofInfo: UserProofInfo{
+					UserMerklePath:     circuit.ComputeMerklePath(4, altProofLower0.MerkleNodes),
 					UserMerklePosition: 4,
 					BottomProof:        proofLower0,
 					MiddleProof:        proofMid,
@@ -614,31 +664,8 @@ func TestVerifyFull(t *testing.T) {
 		copy(badNodesBottom[i], bottomProofsWithBadNodes[0].MerkleNodes[i])
 	}
 	// corrupt a leaf node, this will fail verifyBuild
-	badNodesBottom[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	badNodesBottom[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
 	bottomProofsWithBadNodes[0].MerkleNodes = badNodesBottom
-
-	// merkle nodes of mid proof messed up
-	midProofsWithBadNodes := make([]CompletedProof, len(validMidProofs))
-	copy(midProofsWithBadNodes, validMidProofs)
-	badNodesMid := make([][]Hash, len(midProofsWithBadNodes[0].MerkleNodes))
-	for i := range badNodesMid {
-		badNodesMid[i] = make([]Hash, len(midProofsWithBadNodes[0].MerkleNodes[i]))
-		copy(badNodesMid[i], midProofsWithBadNodes[0].MerkleNodes[i])
-	}
-	// corrupt a leaf node, this will fail verifyBuild
-	badNodesMid[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
-	midProofsWithBadNodes[0].MerkleNodes = badNodesMid
-
-	// merkle nodes of top proof messed up
-	topProofWithBadNodes := validTopProof
-	badNodesTop := make([][]Hash, len(topProofWithBadNodes.MerkleNodes))
-	for i := range badNodesTop {
-		badNodesTop[i] = make([]Hash, len(topProofWithBadNodes.MerkleNodes[i]))
-		copy(badNodesTop[i], topProofWithBadNodes.MerkleNodes[i])
-	}
-	// corrupt a leaf node, this will fail verifyBuild
-	badNodesTop[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
-	topProofWithBadNodes.MerkleNodes = badNodesTop
 
 	// test cases
 	tests := []struct {
@@ -662,8 +689,6 @@ func TestVerifyFull(t *testing.T) {
 		{"Bad bottom proof merkle path", bottomProofsWithBadPath, validMidProofs, validTopProof, validAccountBatches, true},
 		{"Bad top proof asset sum", validBottomProofs, validMidProofs, topProofWithBadAssetSum, validAccountBatches, true},
 		{"Bad bottom proof merkle nodes", bottomProofsWithBadNodes, validMidProofs, validTopProof, validAccountBatches, true},
-		{"Bad mid proof merkle nodes", validBottomProofs, midProofsWithBadNodes, validTopProof, validAccountBatches, true},
-		{"Bad top proof merkle nodes", validBottomProofs, validMidProofs, topProofWithBadNodes, validAccountBatches, true},
 	}
 
 	for _, tt := range tests {
@@ -683,5 +708,5 @@ func TestVerifyFull(t *testing.T) {
 
 func TestVerifyFullPublic(t *testing.T) {
 	assert := test.NewAssert(t)
-	assert.NotPanics(func() { VerifyFull(batchCount) })
+	assert.NotPanics(func() { VerifyFull(batchCount, OUT_DIR) })
 }

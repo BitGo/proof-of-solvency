@@ -8,30 +8,6 @@ import (
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
-// Balance is an input to the circuit and is only used in this package. GoBalance is preferred elsewhere.
-type Balance []frontend.Variable
-
-// Account is an input to the circuit and is only used in this package. GoAccount is preferred elsewhere.
-type Account struct {
-	UserId  frontend.Variable
-	Balance Balance
-}
-
-// Circuit is the input to the proof. A complete Circuit generates a proof, and the public elements of
-// the Circuit can be used to verify the proof.
-type Circuit struct {
-	Accounts                   []Account         `gnark:""`
-	AssetSum                   Balance           `gnark:""`
-	MerkleRoot                 frontend.Variable `gnark:",public"`
-	MerkleRootWithAssetSumHash frontend.Variable `gnark:",public"`
-}
-
-// TreeDepth corresponds to a maximum of 1024 accounts per bottom level proof,
-// and 1024 proofs per higher level proof
-const TreeDepth = 10
-const INVALID_BALANCE_LENGTH_MESSAGE = "balance must have the same length as assets"
-const MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE = "number of hashes exceeds the maximum number of leaves in the Merkle tree"
-
 // Util to get power of two.
 func PowOfTwo(n int) int {
 	return 1 << n
@@ -88,9 +64,9 @@ func hashAccount(hasher mimc.MiMC, account Account) (hash frontend.Variable) {
 // computeMerkleRootFromAccounts computes the Merkle root from the accounts.
 // GoComputeMerkleRootFromAccounts is the Go equivalent for general use.
 func computeMerkleRootFromAccounts(hasher mimc.MiMC, accounts []Account) (rootHash frontend.Variable) {
-	// store hashes of accounts in an array (pad with 0's to reach 2^TreeDepth nodes)
-	nodes := make([]frontend.Variable, PowOfTwo(TreeDepth))
-	for i := 0; i < PowOfTwo(TreeDepth); i++ {
+	// store hashes of accounts in an array (pad with 0's to reach 2^TREE_DEPTH nodes)
+	nodes := make([]frontend.Variable, PowOfTwo(TREE_DEPTH))
+	for i := 0; i < PowOfTwo(TREE_DEPTH); i++ {
 		if i < len(accounts) {
 			nodes[i] = hashAccount(hasher, accounts[i])
 		} else {
@@ -99,7 +75,7 @@ func computeMerkleRootFromAccounts(hasher mimc.MiMC, accounts []Account) (rootHa
 	}
 
 	// iteratively calculate hashes of parent nodes from bottom level to root
-	for i := TreeDepth - 1; i >= 0; i-- {
+	for i := TREE_DEPTH - 1; i >= 0; i-- {
 		for j := 0; j < PowOfTwo(i); j++ {
 			hasher.Reset()
 			hasher.Write(nodes[j*2], nodes[j*2+1])
@@ -143,7 +119,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	// The creator of the proof can already do that by adding phony accounts with arbitrary balances,
 	// so violating this does not affect the security of the proof and does not introduce additional caveats.
 	// Thus, it is an inline check and not a constraint.
-	if len(circuit.Accounts) > PowOfTwo(TreeDepth) {
+	if len(circuit.Accounts) > PowOfTwo(TREE_DEPTH) {
 		panic(MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE)
 	}
 
