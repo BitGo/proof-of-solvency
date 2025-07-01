@@ -127,7 +127,7 @@ func GoComputeHashOfTwoNodes(hasher hash.StateStorer, node1, node2 Hash, label1,
 }
 
 // goComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
-// given a particular TreeDepth.
+// given a particular treeDepth.
 func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash) {
 	// preliminary checks
 	if treeDepth < 0 {
@@ -167,9 +167,9 @@ func goComputeMerkleRootFromHashes(hashes []Hash, treeDepth int) (rootHash Hash)
 }
 
 // GoComputeMerkleRootFromHashes computes the MiMC Merkle root from a list of hashes,
-// assuming Merkle Tree of depth TreeDepth.
+// assuming Merkle Tree of depth TREE_DEPTH.
 func GoComputeMerkleRootFromHashes(hashes []Hash) (rootHash Hash) {
-	return goComputeMerkleRootFromHashes(hashes, TreeDepth)
+	return goComputeMerkleRootFromHashes(hashes, TREE_DEPTH)
 }
 
 // GoComputeMerkleRootFromAccounts computes the Merkle root from a list of accounts.
@@ -222,7 +222,7 @@ func goComputeMerkleTreeNodesFromHashes(hashes []Hash, treeDepth int) [][]Hash {
 }
 
 func GoComputeMerkleTreeNodesFromAccounts(accounts []GoAccount) [][]Hash {
-	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TreeDepth)
+	return goComputeMerkleTreeNodesFromHashes(GoComputeMiMCHashesForAccounts(accounts), TREE_DEPTH)
 }
 
 // ComputeMerklePath computes the MerklePath of a hash at a particular bottom level position in a group

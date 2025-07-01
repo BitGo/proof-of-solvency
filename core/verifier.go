@@ -106,10 +106,10 @@ func verifyProof(proof CompletedProof) error {
 
 // verifyMerklePath verifies that a particular hash and merkle path lead to the given merkle root
 func verifyMerklePath(hash Hash, hashPosition int, path []Hash, root Hash) error {
-	if len(path) != circuit.TreeDepth {
-		return fmt.Errorf("merkle path is not of depth of tree: expected length %d, found %d", circuit.TreeDepth, len(path))
+	if len(path) != circuit.TREE_DEPTH {
+		return fmt.Errorf("merkle path is not of depth of tree: expected length %d, found %d", circuit.TREE_DEPTH, len(path))
 	}
-	if hashPosition < 0 || hashPosition >= circuit.PowOfTwo(circuit.TreeDepth) {
+	if hashPosition < 0 || hashPosition >= circuit.PowOfTwo(circuit.TREE_DEPTH) {
 		return fmt.Errorf("hashPosition out of bounds")
 	}
 
@@ -259,7 +259,7 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 	// bottom level proofs (verify merkle nodes, proof, merkle path)
 	for i, bottomProof := range bottomLevelProofs {
 		panicOnError(
-			verifyBuild(bottomProof.MerkleNodes, bottomProof.MerkleRoot, circuit.TreeDepth),
+			verifyBuild(bottomProof.MerkleNodes, bottomProof.MerkleRoot, circuit.TREE_DEPTH),
 			fmt.Sprintf("merkle nodes for bottom level proof %d inconsistent with its merkle root", i),
 		)
 		panicOnError(verifyProof(bottomProof), fmt.Sprintf("circuit verification failed for bottom level proof %d", i))
@@ -272,7 +272,7 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 	// mid level proofs (verify merkle nodes, proof, merkle path)
 	for i, middleProof := range midLevelProofs {
 		panicOnError(
-			verifyBuild(middleProof.MerkleNodes, middleProof.MerkleRoot, circuit.TreeDepth),
+			verifyBuild(middleProof.MerkleNodes, middleProof.MerkleRoot, circuit.TREE_DEPTH),
 			fmt.Sprintf("merkle nodes for mid level proof %d inconsistent with its merkle root", i),
 		)
 		panicOnError(verifyProof(middleProof), fmt.Sprintf("circuit verification failed for mid level proof %d", i))
@@ -283,14 +283,14 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 	}
 
 	// top level proof (verify merkle nodes and proof)
-	panicOnError(verifyBuild(topLevelProof.MerkleNodes, topLevelProof.MerkleRoot, circuit.TreeDepth), "merkle nodes for top level proof inconsistent with merkle root")
+	panicOnError(verifyBuild(topLevelProof.MerkleNodes, topLevelProof.MerkleRoot, circuit.TREE_DEPTH), "merkle nodes for top level proof inconsistent with merkle root")
 	panicOnError(verifyProof(topLevelProof), "top level proof circuit verification failed")
 
 	// verify account inclusion
 	for i, batch := range accountBatches {
 		for j, account := range batch {
 			accountHash := circuit.GoComputeMiMCHashForAccount(account)
-			if !bytes.Equal(accountHash, bottomLevelProofs[i].MerkleNodes[circuit.TreeDepth][j]) {
+			if !bytes.Equal(accountHash, bottomLevelProofs[i].MerkleNodes[circuit.TREE_DEPTH][j]) {
 				panic(fmt.Sprintf("account %d of batch %d not found in bottom level proofs (or accounts not given in the order given to prover)", j, i))
 			}
 		}

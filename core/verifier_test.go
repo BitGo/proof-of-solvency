@@ -614,7 +614,7 @@ func TestVerifyFull(t *testing.T) {
 		copy(badNodesBottom[i], bottomProofsWithBadNodes[0].MerkleNodes[i])
 	}
 	// corrupt a leaf node, this will fail verifyBuild
-	badNodesBottom[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	badNodesBottom[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
 	bottomProofsWithBadNodes[0].MerkleNodes = badNodesBottom
 
 	// merkle nodes of mid proof messed up
@@ -626,7 +626,7 @@ func TestVerifyFull(t *testing.T) {
 		copy(badNodesMid[i], midProofsWithBadNodes[0].MerkleNodes[i])
 	}
 	// corrupt a leaf node, this will fail verifyBuild
-	badNodesMid[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	badNodesMid[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
 	midProofsWithBadNodes[0].MerkleNodes = badNodesMid
 
 	// merkle nodes of top proof messed up
@@ -637,7 +637,7 @@ func TestVerifyFull(t *testing.T) {
 		copy(badNodesTop[i], topProofWithBadNodes.MerkleNodes[i])
 	}
 	// corrupt a leaf node, this will fail verifyBuild
-	badNodesTop[circuit.TreeDepth][0] = []byte{0xde, 0xad, 0xbe, 0xef}
+	badNodesTop[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
 	topProofWithBadNodes.MerkleNodes = badNodesTop
 
 	// test cases
