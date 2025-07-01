@@ -8,31 +8,6 @@ import (
 	"github.com/consensys/gnark/std/rangecheck"
 )
 
-// Balance is an input to the circuit and is only used in this package. GoBalance is preferred elsewhere.
-type Balance []frontend.Variable
-
-// Account is an input to the circuit and is only used in this package. GoAccount is preferred elsewhere.
-type Account struct {
-	UserId  frontend.Variable
-	Balance Balance
-}
-
-// Circuit is the input to the proof. A complete Circuit generates a proof, and the public elements of
-// the Circuit can be used to verify the proof.
-type Circuit struct {
-	Accounts                   []Account         `gnark:""`
-	AssetSum                   Balance           `gnark:""`
-	MerkleRoot                 frontend.Variable `gnark:",public"`
-	MerkleRootWithAssetSumHash frontend.Variable `gnark:",public"`
-}
-
-// TREE_DEPTH corresponds to a maximum of 1024 accounts per bottom level proof,
-// and 1024 proofs per higher level proof.
-const TREE_DEPTH = 10
-const ACCOUNTS_PER_BATCH = 1 << TREE_DEPTH
-const INVALID_BALANCE_LENGTH_MESSAGE = "balance must have the same length as assets"
-const MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE = "number of hashes exceeds the maximum number of leaves in the Merkle tree"
-
 // Util to get power of two.
 func PowOfTwo(n int) int {
 	return 1 << n
