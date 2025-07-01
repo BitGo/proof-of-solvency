@@ -15,28 +15,36 @@ import (
 const batchCount = 2
 const countPerBatch = 16
 
-var proofLower0, proofLower1, proofMid, proofTop CompletedProof
-var testData0, testData1 ProofElements
+var proofLower0, proofLower1, proofMid, proofTop, altProofLower0, altProofMid, altProofTop CompletedProof
+var testData0, testData1, altTestData0 ProofElements
 
 // TestMain sets up the test environment by generating test data and proofs once
 // for all tests to use.
 func TestMain(m *testing.M) {
-	// clean up output directory before running tests
+	// clean up out and alt directory before running tests
 	os.RemoveAll("out")
+	os.RemoveAll("alt")
+
+	// create out and alt directory structure
 	os.MkdirAll("out/secret", 0755)
 	os.MkdirAll("out/public", 0755)
 	os.MkdirAll("out/user", 0755)
+	os.MkdirAll("alt/secret", 0755)
+	os.MkdirAll("alt/public", 0755)
+	os.MkdirAll("alt/user", 0755)
 
 	// create testutildata directory
 	os.MkdirAll("testutildata", 0o755)
 
-	// generate test data with batchCount batches of countPerBatch accounts each
+	// generate test data and proofs in out directory
 	GenerateData(batchCount, countPerBatch, OUT_DIR)
-
-	// generate proofs for the test data
 	Prove(batchCount, OUT_DIR)
 
-	// read generated proofs and test data files
+	// generate test data and proofs in alt directory
+	GenerateData(1, countPerBatch, "alt/")
+	Prove(1, "alt/")
+
+	// read generated proofs and test data files from out directory
 	proofLower0 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "0.json")
 	proofLower1 = ReadDataFromFile[CompletedProof](OUT_DIR + BOTTOM_PROOF_PREFIX + "1.json")
 	proofMid = ReadDataFromFile[CompletedProof](OUT_DIR + MIDDLE_PROOF_PREFIX + "0.json")
@@ -44,16 +52,18 @@ func TestMain(m *testing.M) {
 	testData0 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "0.json")
 	testData1 = ReadDataFromFile[ProofElements](OUT_DIR + SECRET_DATA_PREFIX + "1.json")
 
+	// read generated proofs and test data files from alt directory
+	altProofLower0 = ReadDataFromFile[CompletedProof]("alt/" + BOTTOM_PROOF_PREFIX + "0.json")
+	altProofMid = ReadDataFromFile[CompletedProof]("alt/" + MIDDLE_PROOF_PREFIX + "0.json")
+	altProofTop = ReadDataFromFile[CompletedProof]("alt/" + TOP_PROOF_PREFIX + "0.json")
+	altTestData0 = ReadDataFromFile[ProofElements]("alt/" + SECRET_DATA_PREFIX + "0.json")
+
 	// run tests
 	exitCode := m.Run()
 
 	// exit with test status code
 	os.Exit(exitCode)
 }
-
-// var altProofLower0 = ReadDataFromFile[CompletedProof]("testdata/test_alt_proof_0.json")
-// var altProofMid = ReadDataFromFile[CompletedProof]("testdata/test_alt_mid_level_proof_0.json")
-var altProofTop = ReadDataFromFile[CompletedProof]("testdata/test_alt_top_level_proof_0.json")
 
 func TestVerifyProofPasses(t *testing.T) {
 	// should return nil for valid proofs
