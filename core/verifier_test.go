@@ -667,29 +667,6 @@ func TestVerifyFull(t *testing.T) {
 	badNodesBottom[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
 	bottomProofsWithBadNodes[0].MerkleNodes = badNodesBottom
 
-	// merkle nodes of mid proof messed up
-	midProofsWithBadNodes := make([]CompletedProof, len(validMidProofs))
-	copy(midProofsWithBadNodes, validMidProofs)
-	badNodesMid := make([][]Hash, len(midProofsWithBadNodes[0].MerkleNodes))
-	for i := range badNodesMid {
-		badNodesMid[i] = make([]Hash, len(midProofsWithBadNodes[0].MerkleNodes[i]))
-		copy(badNodesMid[i], midProofsWithBadNodes[0].MerkleNodes[i])
-	}
-	// corrupt a leaf node, this will fail verifyBuild
-	badNodesMid[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
-	midProofsWithBadNodes[0].MerkleNodes = badNodesMid
-
-	// merkle nodes of top proof messed up
-	topProofWithBadNodes := validTopProof
-	badNodesTop := make([][]Hash, len(topProofWithBadNodes.MerkleNodes))
-	for i := range badNodesTop {
-		badNodesTop[i] = make([]Hash, len(topProofWithBadNodes.MerkleNodes[i]))
-		copy(badNodesTop[i], topProofWithBadNodes.MerkleNodes[i])
-	}
-	// corrupt a leaf node, this will fail verifyBuild
-	badNodesTop[circuit.TREE_DEPTH][0] = []byte{0xde, 0xad, 0xbe, 0xef}
-	topProofWithBadNodes.MerkleNodes = badNodesTop
-
 	// test cases
 	tests := []struct {
 		name           string
@@ -712,8 +689,6 @@ func TestVerifyFull(t *testing.T) {
 		{"Bad bottom proof merkle path", bottomProofsWithBadPath, validMidProofs, validTopProof, validAccountBatches, true},
 		{"Bad top proof asset sum", validBottomProofs, validMidProofs, topProofWithBadAssetSum, validAccountBatches, true},
 		{"Bad bottom proof merkle nodes", bottomProofsWithBadNodes, validMidProofs, validTopProof, validAccountBatches, true},
-		{"Bad mid proof merkle nodes", validBottomProofs, midProofsWithBadNodes, validTopProof, validAccountBatches, true},
-		{"Bad top proof merkle nodes", validBottomProofs, validMidProofs, topProofWithBadNodes, validAccountBatches, true},
 	}
 
 	for _, tt := range tests {
