@@ -232,10 +232,10 @@ func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLeve
 }
 
 // main proof generation function
-func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof CompletedProof) {
+func Prove(batchCount int) {
 	// bottom level proofs
 	proofElements := ReadDataFromFiles[ProofElements](batchCount, "out/secret/test_data_")
-	bottomLevelProofs = generateProofs(proofElements)
+	bottomLevelProofs := generateProofs(proofElements)
 
 	// mid level proofs
 	midLevelProofs := make([]CompletedProof, 0)
@@ -244,7 +244,7 @@ func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof Co
 	}
 
 	// top level proof
-	topLevelProof = generateNextLevelProofs(midLevelProofs)
+	topLevelProof := generateNextLevelProofs(midLevelProofs)
 
 	// set merkle paths of bottom and midlevel proofs
 	setLowerLevelProofsMerklePaths(bottomLevelProofs, midLevelProofs)
@@ -254,6 +254,4 @@ func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof Co
 	writeProofsToFiles(bottomLevelProofs, "out/public/test_proof_", false)
 	writeProofsToFiles(midLevelProofs, "out/public/test_mid_level_proof_", false)
 	writeProofsToFiles([]CompletedProof{topLevelProof}, "out/public/test_top_level_proof_", true)
-
-	return bottomLevelProofs, topLevelProof
 }
