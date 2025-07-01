@@ -8,8 +8,6 @@ import (
 
 // GenerateData generates test data and writes it to files for development/testing purposes.
 func GenerateData(batchCount int, countPerBatch int, outDir string) {
-	var lastAccount *circuit.GoAccount
-
 	for i := 0; i < batchCount; i++ {
 		filePath := outDir + SECRET_DATA_PREFIX + strconv.Itoa(i) + ".json"
 
@@ -21,14 +19,5 @@ func GenerateData(batchCount int, countPerBatch int, outDir string) {
 
 		// write to file
 		WriteDataToFile(filePath, secretData)
-
-		lastAccount = &secretData.Accounts[0]
 	}
-
-	if lastAccount == nil {
-		panic("lastAccount is nil")
-	}
-
-	// write last account to separate file to test with
-	WriteDataToFile(outDir+"user/test_account.json", *lastAccount)
 }

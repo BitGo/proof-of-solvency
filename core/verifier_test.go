@@ -28,10 +28,8 @@ func TestMain(m *testing.M) {
 	// create out and alt directory structure
 	os.MkdirAll("out/secret", 0755)
 	os.MkdirAll("out/public", 0755)
-	os.MkdirAll("out/user", 0755)
 	os.MkdirAll("alt/secret", 0755)
 	os.MkdirAll("alt/public", 0755)
-	os.MkdirAll("alt/user", 0755)
 
 	// create testutildata directory
 	os.MkdirAll("testutildata", 0o755)
