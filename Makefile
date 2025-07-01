@@ -1,4 +1,4 @@
-.PHONY: build
+.PHONY: build test lint
 
 build:
 	go build -o bgproof ./main.go
@@ -6,3 +6,6 @@ build:
 test:
 	go test ./circuit -v
 	go test ./core -v
+
+lint:
+	golangci-lint run
