@@ -175,7 +175,7 @@ func generateProofs(proofElements []ProofElements) []CompletedProof {
 // writeProofsToFiles writes the proofs to files with the given prefix.
 // saveAssetSum should be set to true only for top level proofs, because
 // otherwise the asset sum may leak information about the balance composition of each batch
-// of 1024 accounts.
+// of accounts.
 func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum bool) {
 	for i, proof := range proofs {
 		if !saveAssetSum {
@@ -218,13 +218,16 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 // upper level proofs. Updates contents of lowerLevelProofs directly so nothing is returned.
 func setLowerLevelProofsMerklePaths(lowerLevelProofs []CompletedProof, upperLevelProofs []CompletedProof) {
 	for i := range lowerLevelProofs {
-		upperLevelProofIndex := i / 1024
+		upperLevelProofIndex := i / circuit.ACCOUNTS_PER_BATCH
 		if upperLevelProofIndex >= len(upperLevelProofs) {
 			panic("not enough upperLevelProofs given for lowerLevelProofs")
 		}
 
-		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(i%1024, upperLevelProofs[upperLevelProofIndex].MerkleNodes)
-		lowerLevelProofs[i].MerklePosition = i % 1024
+		lowerLevelProofs[i].MerklePath = circuit.ComputeMerklePath(
+			i%circuit.ACCOUNTS_PER_BATCH,
+			upperLevelProofs[upperLevelProofIndex].MerkleNodes,
+		)
+		lowerLevelProofs[i].MerklePosition = i % circuit.ACCOUNTS_PER_BATCH
 	}
 }
 
@@ -236,7 +239,7 @@ func Prove(batchCount int) (bottomLevelProofs []CompletedProof, topLevelProof Co
 
 	// mid level proofs
 	midLevelProofs := make([]CompletedProof, 0)
-	for _, batch := range batchProofs(bottomLevelProofs, 1024) {
+	for _, batch := range batchProofs(bottomLevelProofs, circuit.ACCOUNTS_PER_BATCH) {
 		midLevelProofs = append(midLevelProofs, generateNextLevelProofs(batch))
 	}
 

@@ -27,8 +27,9 @@ type Circuit struct {
 }
 
 // TREE_DEPTH corresponds to a maximum of 1024 accounts per bottom level proof,
-// and 1024 proofs per higher level proof
+// and 1024 proofs per higher level proof.
 const TREE_DEPTH = 10
+const ACCOUNTS_PER_BATCH = 1 << TREE_DEPTH
 const INVALID_BALANCE_LENGTH_MESSAGE = "balance must have the same length as assets"
 const MERKLE_TREE_LEAF_LIMIT_EXCEEDED_MESSAGE = "number of hashes exceeds the maximum number of leaves in the Merkle tree"
 

@@ -264,7 +264,12 @@ func verifyFull(bottomLevelProofs, midLevelProofs []CompletedProof, topLevelProo
 		)
 		panicOnError(verifyProof(bottomProof), fmt.Sprintf("circuit verification failed for bottom level proof %d", i))
 		panicOnError(
-			verifyMerklePath(bottomProof.MerkleRootWithAssetSumHash, bottomProof.MerklePosition, bottomProof.MerklePath, midLevelProofs[i/1024].MerkleRoot),
+			verifyMerklePath(
+				bottomProof.MerkleRootWithAssetSumHash,
+				bottomProof.MerklePosition,
+				bottomProof.MerklePath,
+				midLevelProofs[i/circuit.ACCOUNTS_PER_BATCH].MerkleRoot,
+			),
 			fmt.Sprintf("merkle path verification failed for bottom level proof %d", i),
 		)
 	}
@@ -313,8 +318,8 @@ func VerifyFull(batchCount int) {
 
 	// read proofs from files
 	bottomLevelProofs := ReadDataFromFiles[CompletedProof](batchCount, "out/public/test_proof_")
-	// the number of mid level proofs is ceil(batchCount / 1024)
-	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+1023)/1024, "out/public/test_mid_level_proof_")
+	// the number of mid level proofs is ceil(batchCount / ACCOUNTS_PER_BATCH),
+	midLevelProofs := ReadDataFromFiles[CompletedProof]((batchCount+circuit.ACCOUNTS_PER_BATCH-1)/circuit.ACCOUNTS_PER_BATCH, "out/public/test_mid_level_proof_")
 	topLevelProof := ReadDataFromFiles[CompletedProof](1, "out/public/test_top_level_proof_")[0]
 
 	// verify
