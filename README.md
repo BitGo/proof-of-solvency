@@ -22,34 +22,26 @@ Then run the binary using
 
 ### Commands:
 
-#### Userverify
+#### UserVerify
 
-Get four proof files from BitGo by hitting the following endpoint:
-
-```
-GET /api/v2/wallet/{walletId}/balances/proofs
-```
-
-Using the proof files provided by BitGo, run the following command:
-
+This is the command used by a client with a Go Account to verify their account balance was included in the total liabilities published by BitGo. Steps for verification for a Go Account:
+1) Login to the BitGo website.
+2) Navigate to the Assets > GoAccount tab and click on the "Download Liability Proofs" button to download the `accountproof.json` corresponding to the Go Account. (At this point, it can be verified that inside `AccountInfo` object inside the downloaded file, the `UserId` field corresponds to the wallet address of the Go Account and the Balance list corresponds to the balance of the GoAccount for supported currencies.)
+3) Using the binary, run:
 ```bash
-./bgproof userverify path/to/useraccount.json path/to/bottomlevelproof.json path/to/midlevelproof.json path/to/toplevelproof.json
+./bgproof userverify path/to/accountproof.json
 ```
 
-This is intended to be the main verification path, requiring O(log n) time to verify proof of solvency. This verification path verifies that
-1) Your account was included in the bottom level proof you were provided
-2) The bottom level proof you were provided was included in the mid level proof you were provided
-3) The mid level proof you were provided was included in the top level proof you were provided
-4) The top level proof you were provided matches the asset sum you were provided
-5) The chain of proofs is valid (i.e., your account was included in the asset sum for the low level proof, 
-the low level proof was included in the asset sum for the mid level proof, 
-the mid level proof was included in the asset sum for the high level proof, and
-there were no accounts with overflowing balances or negative balances included in any of the asset sums.
+This will verify:
+1) The account balance was included in the asset sum of the bottom-layer proof.
+2) The asset sum of the bottom-layer proof was included in the asset sum of the mid-layer proof provided.
+3) The asset sum of the mid-layer proof was included in the asset sum of the top-layer proof provided.
+4) The true asset sum of the top-layer proof matches the total liability sum published by BitGo.
+5) The asset sums of the bottom, mid, and top-layer proofs did not include any negative or overflowing balances.
 
 #### Prove
 
-This generates proofs for accounts in the files `data_0.json...data_(i-1).json` in `out/secret` and stores the proofs in `out/public`. 
-Each input data file can contain a maximum of 1024 accounts.
+This generates proofs for accounts in the files `batch_0.json...batch_n.json` in `out/secret` and stores the proofs in `out/public`. Each batch data file can contain a maximum of 1024 accounts. Usage:
 
 ```bash
 ./bgproof prove [number of input data batches]
@@ -57,9 +49,13 @@ Each input data file can contain a maximum of 1024 accounts.
 
 #### Verify
 
-This is a complete verification, requiring every proof file and one account in `out/user/test_account.json`. 
-This can be useful for checking that the proofs were correctly generated. Please note that these filenames are fixed,
-and that the number of mid and top level proofs are determined by the number of lower level proofs.
+This command is used for complete verification of generated proofs. It assumes generated proofs are in `out/public` and the accounts batches used as input are in `out/secret`. It verifies:
+1) Each bottom-layer, mid-layer, and top-layer proof in `out/public` can be verified by the circuit.
+2) Each bottom-layer proof was included in an mid-layer proof and each mid-layer proof was included in the top-layer proof.
+3) Each account in `out/secret` was included in a bottom-layer proof.
+4) Each bottom proof has a valid set of merkle nodes (which can be later used to compute merkle paths for accounts).
+This can be useful for checking that the proofs were correctly generated. Please note that filenames are fixed,
+and that the number of mid-layer and top-layer proofs are determined by the number of lower layer proofs.
 
 ```bash
 ./bgproof verify [number of input lower level proofs]
@@ -67,7 +63,7 @@ and that the number of mid and top level proofs are determined by the number of 
 
 #### Generate
 
-This generates dummy data purely for testing and puts it in `out/secret`. Running this can be helpful for getting an idea of what the input files look like.
+This generates dummy account batches purely for testing and puts it in `out/secret`. Running this can be helpful for getting an idea of what the input files look like.
 
 ```bash
 ./bgproof generate [number of data batches to generate] [accounts to include per batch]
