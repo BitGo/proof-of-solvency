@@ -22,35 +22,35 @@ func verifyProof(proof CompletedProof) error {
 		MerkleRootWithAssetSumHash: proof.MerkleRootWithAssetSumHash,
 	}, ecc.BN254.ScalarField(), frontend.PublicOnly())
 	if err != nil {
-		return fmt.Errorf("Error creating public witness: %v", err)
+		return fmt.Errorf("error creating public witness: %v", err)
 	}
 
 	// read proof bytes into groth16 proof instance
 	grothProof := groth16.NewProof(ecc.BN254)
 	proofBytes, err := base64.StdEncoding.DecodeString(proof.Proof)
 	if err != nil {
-		return fmt.Errorf("Error decoding proof: %v", err)
+		return fmt.Errorf("error decoding proof: %v", err)
 	}
 	_, err = grothProof.ReadFrom(bytes.NewBuffer(proofBytes))
 	if err != nil {
-		return fmt.Errorf("Error reading proof: %v", err)
+		return fmt.Errorf("error reading proof: %v", err)
 	}
 
 	// read verification key bytes into groth16 vk instance
 	grothVK := groth16.NewVerifyingKey(ecc.BN254)
 	vkBytes, err := base64.StdEncoding.DecodeString(proof.VerificationKey)
 	if err != nil {
-		return fmt.Errorf("Error decoding verification key: %v", err)
+		return fmt.Errorf("error decoding verification key: %v", err)
 	}
 	_, err = grothVK.ReadFrom(bytes.NewBuffer(vkBytes))
 	if err != nil {
-		return fmt.Errorf("Error reading verification key: %v", err)
+		return fmt.Errorf("error reading verification key: %v", err)
 	}
 
 	// verify public witness with proof and VK
 	err = groth16.Verify(grothProof, grothVK, publicWitness)
 	if err != nil {
-		return fmt.Errorf("Proof verification failed: %v", err)
+		return fmt.Errorf("proof verification failed: %v", err)
 	}
 
 	return nil
@@ -134,12 +134,12 @@ func verifyBuild(nodes [][]Hash, root Hash, treeDepth int) error {
 // Returns nil if verification passes, error if it fails
 func verifyTopLayerProofMatchesAssetSum(topLayerProof CompletedProof) error {
 	if topLayerProof.AssetSum == nil {
-		return fmt.Errorf("Top layer proof's AssetSum is nil")
+		return fmt.Errorf("top layer proof's AssetSum is nil")
 	}
 
 	computedHash := circuit.GoComputeMiMCHashForAccount(ConvertProofToGoAccount(topLayerProof))
 	if !bytes.Equal(computedHash, topLayerProof.MerkleRootWithAssetSumHash) {
-		return fmt.Errorf("Top layer proof's MerkleRootWithAssetSumHash does not match the hash computed from MerkleRoot and AssetSum")
+		return fmt.Errorf("top layer proof's MerkleRootWithAssetSumHash does not match the hash computed from MerkleRoot and AssetSum")
 	}
 	return nil
 }
