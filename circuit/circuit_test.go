@@ -224,5 +224,8 @@ func TestCircuitPanicsWhenTooManyAccounts(t *testing.T) {
 	}
 
 	// Just accessing the Define method with this circuit should trigger the panic
-	badCircuit.Define(nil)
+	err := badCircuit.Define(nil)
+	if err != nil {
+		t.Errorf("Expected panic, but got error: %v", err)
+	}
 }
