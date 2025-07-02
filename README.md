@@ -104,48 +104,40 @@ A top-layer proof is constructed for up to 1024 mid-layer proofs:
     - Hash of (merkle root + total liability sum).
     - Total liability sum.
 
+## Proof Verification
+Liability proof verification for a BitGo client with a Go Account works in the following manner.
+### What does BitGo provide?
+1) The user account's wallet address and balance at the time the liability proofs were generated.
+2) The zk-SNARK proof for the bottom-layer tree, mid-layer tree, and top-layer tree corresponding to the account.
+3) The merkle root of the bottom-layer, mid-layer, and top-layer tree.
+4) The hash of (merkle root + total subtree balance sum) for the bottom-layer, mid-layer, and top-layer tree.
+4) The merkle proof path for:
+    - The user account in the bottom-layer tree
+    - The bottom-layer proof in the mid-layer tree
+    - The mid-layer proof in the top-layer tree
+6) The total liability sum (published publicly).
 
-## Verifying Proofs
+### What can be verified?
+The user can verify that the provided wallet address and balance for their Go Account is correct.
+Then they can use the user verification tool provided by this repo to:
+1) Verify the zk-SNARK proofs for the bottom-layer tree, mid-layer tree, and top-layer tree are valid. This proves:
+    - Each tree had only positive, non-overflow balances in the leaf nodes.
+    - The total subtree sum in hash (merkle root + total subtree balance sum) was properly calculated from the leaf-node balances.
+2) Verify the merkle proof paths for account -> bottom-layer tree, bottom-layer tree -> mid-layer tree, and mid-layer tree -> top-layer tree are valid. This proves:
+    - The account's balance was included in the bottom-layer tree sum.
+    - The bottom-layer tree sum was included in the mid-layer tree sum.
+    - The mid-layer tree sum was included in the top-layer tree sum.
+3) Verify the hash of (provided top-layer tree merkle root + published total liability sum) matches the provided hash of (top-layer tree merkle root + top-layer tree total subtree sum). This proves the published total liability sum is the true sum of all accounts included in the 3-layer merkle tree.
 
-The following method can be generalized to an arbitrary numbers of layers.
+### Validity of Published Total Liability Sum
+Each successful verification of a client's Go Account attests to the following (informally):
+1) Every client's Go Account has been included in at least one bottom-layer tree (since the arbitrary client was included).
+2) Every bottom-layer tree containing Go Accounts was included in a mid-layer tree (since the arbitrary client was included, and is part of an arbitrary tree).
+3) Every mid-layer tree containing Go Accounts is included in the top-layer tree (by the same logic as above).
+4) Additional accounts, bottom-layer proofs, and mid-layer proofs will not lower the liability sum in a bottom-layer proof, mid-layer proof, or the top-layer proof, respectively.
+5) Every account included in every bottom proof included in every mid-layer proof included in the top-layer proof sums to _t_, the total liability, where hash(top_merkle_root, t) == t_hash (proved by circuit).
 
-Clients can verify the proof of liabilities for a 2 layered proof in the following manner:
+From (1), (2), (3), and (5), we can conclude that every BitGo user's balances is included in _t_. 
+From (4), we can conclude that _t_ is at least the sum of all included BitGo users' balances.
 
-BitGo provides:
-1) A merkle path for the bottom layer
-2) A merkle path for the top layer
-3) A zk-snark proof for the bottom layer
-4) A zk-snark proof for the top layer
-5) The root hash of the top layer
-6) The root hash of the bottom layer
-7) The total liability sum of the top layer
-8) The hash of (5) and the sum of liabilities of the bottom layer
-
-The user knows their userId and account balance.
-
-The user can verify the proof in the following manner:
-- Compute their leaf hash w = hash(userId + balance)
-- Using the merkle path (1), verify that their leaf hash w is included 
-in the merkle tree of the bottom layer with merkle root equal to (6)
-- Using the zk-snark proof (3), verify that x = hash(merkle_hash_n + sum(balanceN, ..., balanceN+1023))
-is correctly computed from every balance in the bottom layer
-- Using the merkle path (2), verify that x is included
-in the merkle tree of the bottom layer with merkle root equal to (5)
-- Using the zk-snark proof (4), verify that y = hash(merkle_hash_top + sum(total_liability))
-- Using the root hash (5) and the total liability sum (7), verify that hash((5) + (7)) == (8)
-
-#### This verifies the proof because (informally) we know that:
-
-1) Every BitGo user has been included in at least one bottom layer proof (since the arbitrary client was included)
-2) Every bottom layer proof containing BitGo users was included in the top layer proof (since the arbitrary client was included, and is part of an arbitrary proof)
-3) Additional users will not lower the liability sum in a bottom layer proof, and additional bottom layer proofs will not lower the total liability in the top layer proof (proved by circuit)
-4) Every bottom layer proof sums to some (private) _s_ such that hash(p_root, s) == p_hash (proved by circuit)
-5) Every bottom layer proof included in the top layer sums to _t_, the total liability, where hash(top_root, t) == t_hash (proved by circuit)
-
-From (1), (2), (4), and (5), we can conclude that every BitGo user's balances is included in _t_. 
-From (3), we can conclude that _t_ is at least the sum of all included BitGo users' balances.
-
-Therefore, we can conclude that _t_ is at least the sum of all BitGo user liabilities.
-
-**The actual implementation is a 3 layered proof to allow for a maximum of 1 billion accounts instead of 1 million with 2 layers. 
-Refer to `core/verify.go` to see the actual implementation.**
+Therefore, we can conclude (informally) that _t_ is at least the sum of all BitGo user liabilities.
