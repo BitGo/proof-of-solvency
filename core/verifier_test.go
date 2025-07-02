@@ -26,13 +26,13 @@ func TestMain(m *testing.M) {
 	os.RemoveAll("alt")
 
 	// create out and alt directory structure
-	os.MkdirAll("out/secret", 0755)
-	os.MkdirAll("out/public", 0755)
-	os.MkdirAll("alt/secret", 0755)
-	os.MkdirAll("alt/public", 0755)
+	panicOnError(os.MkdirAll("out/secret", 0755), "failed to create out/secret directory")
+	panicOnError(os.MkdirAll("out/public", 0755), "failed to create out/public directory")
+	panicOnError(os.MkdirAll("alt/secret", 0755), "failed to create alt/secret directory")
+	panicOnError(os.MkdirAll("alt/public", 0755), "failed to create alt/public directory")
 
 	// create testutildata directory
-	os.MkdirAll("testutildata", 0o755)
+	panicOnError(os.MkdirAll("testutildata", 0o755), "failed to create testutildata directory")
 
 	// generate test data and proofs in out directory
 	GenerateData(batchCount, countPerBatch, OUT_DIR)
