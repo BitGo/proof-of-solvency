@@ -1,11 +1,10 @@
 # Proof of Solvency
 
-**THIS IS A WORK IN PROGRESS**
-
 ## Overview
 
-This is a multi-levelled proof of solvency implementation that enables O(log n) time verification of proofs. 
-This system is implemented using Gnark v0.12.0.
+This repository is part of BitGo's proof of solvency implementation for Go Accounts, enabling clients to verify that their assets are fully backed. The repository contains code for generating liability proofs and verifying them through a multi-level merkle tree structure with zero-knowledge proofs.
+
+[Note: BitGo website UI updates to view total liabilites and download liability proofs for Go Accounts are still underway.]
 
 ## Usage
 
