@@ -71,23 +71,39 @@ This generates dummy account batches purely for testing and puts it in `out/secr
 
 ## Architecture
 
-This can be extended to arbitrary layers to preserve O(log n) verification time.
+This system uses a multi-layer Merkle Tree architecture combined with zk-SNARK circuits to allow for parallelization during proof generation and O(logn) verification time (where n is the total number of client accounts). The current 3-layer implementation can support up to 1 billion accounts, but it is designed to be extensible with more layers (if needed) without changing any guarantees. The zk-SNARK circuits and merkle tree hashes are built using Gnark library (v0.12.0).
 
-The explanations assume a 2 layer implementation. 
+### Key Concepts
 
-However, the actual implementation is currently 3 layers, leading to an upper limit of 1 billion accounts. This does not change the guarantees.
+- **GoAccount**: Consists of a UserId (walletId) and a Balance list for the wallet.
+- **GoBalance**: Each element of the Balance list corresponds to the amount of a particular currency the account holds. The currency an element at a particular index correponds to is the currency that is given at that index in the `AssetSymbols` list located in `circuit/constants.go`. This type is also the same type used to represent asset sums at any layer in the merkle tree.
 
-### Bottom layer: 
+### 3-Layer Proof Construction
 
-_(Private inputs)_ [hash(user1 + balance1), hash(user2 + balance2), ..., hash(user1023 + balance1023)] => **(Public outputs)** merkle_hash_1, hash(merkle_hash_1 + sum(balance1, ..., balance1023))
+For n GoAccounts, the system creates a hierarchical proof structure:
 
-Repeat for user1024...user2047 to get merkle_hash_2, etc
+#### Bottom Layer
+The accounts are split into batches of 1024 each and a bottom-layer proof (zk-SNARK circuit) is constructed for each batch:
+- **Private Inputs**: Up to 1024 GoAccounts.
+- **Public Outputs**: 
+    - Merkle root of the merkle tree of the hashes of the input GoAccounts.
+    - Hash of (merkle root + sum of all balances in batch).
 
-### Top layer: 
+#### Middle Layer
+Bottom-layer proofs are split into batches of 1024 each and a mid-layer proof is constructed for each batch:
+- **Private Inputs**: Up to 1024 bottom-layer proofs of form: {bottom_merkle_root, bottom_asset_sum}.
+- **Public Outputs**:
+    - Merkle root of the merkle tree of the hashes of input bottom-layer proof structs.
+    - Hash of (merkle root + sum of all balances in this subtree).
 
-_(Private inputs)_ [hash(merkle_hash_1 + sum(balance1, ..., balance1023)), hash(merkle_hash_2 + sum(balance1024, ..., balance2047)), ...] => **(Public outputs)** merkle_hash_top, hash(merkle_hash_top + sum(total_liability))
+#### Top Layer
+A top-layer proof is constructed for up to 1024 mid-layer proofs:
+- **Private Inputs**: Up to 1024 mid-layer proofs of form: {middle_merkle_root, middle_asset_sum}.
+- **Public Outputs**:
+    - Merkle root of the merkle tree of the hashes of input mid-layer proof structs.
+    - Hash of (merkle root + total liability sum).
+    - Total liability sum.
 
-sum(total_liability) is also published
 
 ## Verifying Proofs
 
