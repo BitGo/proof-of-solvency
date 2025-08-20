@@ -79,6 +79,11 @@ type UserVerificationElements struct {
 }
 
 // Types for reading and writing raw user verification elements from/to files:
+type RawUVBalance struct {
+	Asset  string
+	Amount string
+}
+
 type RawLowerLevelProof struct {
 	Proof                      string
 	VerificationKey            string
@@ -93,7 +98,7 @@ type RawTopLevelProof struct {
 	VerificationKey            string
 	MerkleRoot                 []byte
 	MerkleRootWithAssetSumHash []byte
-	AssetSum                   *[]string
+	AssetSum                   *[]RawUVBalance
 }
 
 type RawUserProofInfo struct {
@@ -106,7 +111,7 @@ type RawUserProofInfo struct {
 
 type RawUserAccountInfo struct {
 	UserId  string
-	Balance []string
+	Balance []RawUVBalance
 }
 
 type RawUserVerificationElements struct {

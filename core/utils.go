@@ -140,10 +140,10 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 			panic("reading user verification elements failed: TopProof.AssetSum is nil")
 		} else {
 			convertedAssetSum := make(circuit.GoBalance, len(*rawUserElements.ProofInfo.TopProof.AssetSum))
-			for i, asset := range *rawUserElements.ProofInfo.TopProof.AssetSum {
-				bigIntValue, ok := new(big.Int).SetString(asset, 10)
+			for i, assetBalance := range *rawUserElements.ProofInfo.TopProof.AssetSum {
+				bigIntValue, ok := new(big.Int).SetString(assetBalance.Amount, 10)
 				if !ok {
-					panic("Error converting asset sum string to big.Int: " + asset)
+					panic("Error converting asset sum string to big.Int: " + assetBalance.Amount)
 				}
 				convertedAssetSum[i] = bigIntValue
 			}
@@ -152,10 +152,10 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 
 		// convert user account balance from []string to circuit.GoBalance
 		convertedBalance := make(circuit.GoBalance, len(rawUserElements.AccountInfo.Balance))
-		for i, asset := range rawUserElements.AccountInfo.Balance {
-			bigIntValue, ok := new(big.Int).SetString(asset, 10)
+		for i, assetBalance := range rawUserElements.AccountInfo.Balance {
+			bigIntValue, ok := new(big.Int).SetString(assetBalance.Amount, 10)
 			if !ok {
-				panic("Error converting account balance string to big.Int: " + asset)
+				panic("Error converting account balance string to big.Int: " + assetBalance.Amount)
 			}
 			convertedBalance[i] = bigIntValue
 		}
