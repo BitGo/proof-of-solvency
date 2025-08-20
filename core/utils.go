@@ -14,7 +14,7 @@ func ConvertProofToGoAccount(proof CompletedProof) circuit.GoAccount {
 		panic("AssetSum is nil, cannot convert to GoAccount")
 	}
 	return circuit.GoAccount{
-		UserId:  proof.MerkleRoot,
+		WalletId:  proof.MerkleRoot,
 		Balance: *proof.AssetSum,
 	}
 }
@@ -163,7 +163,7 @@ func ReadDataFromFile[D ProofElements | CompletedProof | circuit.GoAccount | Use
 		// construct the UserVerificationElements from the raw data
 		actualUserElements := UserVerificationElements{
 			AccountInfo: circuit.ConvertRawGoAccountToGoAccount(circuit.RawGoAccount{
-				UserId:  rawUserElements.AccountInfo.UserId,
+				WalletId:  rawUserElements.AccountInfo.WalletId,
 				Balance: convertedBalance,
 			}),
 			ProofInfo: UserProofInfo{

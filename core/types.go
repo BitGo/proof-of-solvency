@@ -110,7 +110,7 @@ type RawUserProofInfo struct {
 }
 
 type RawUserAccountInfo struct {
-	UserId  string
+	WalletId  string
 	Balance []RawUVBalance
 }
 

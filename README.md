@@ -26,7 +26,7 @@ Then run the binary using
 
 This is the command used by a client with a Go Account to verify their account balance was included in the total liabilities published by BitGo. Steps for verification for a Go Account:
 1) Login to the BitGo website.
-2) Navigate to the Assets > GoAccount tab and click on the "Download Liability Proofs" button to download the `accountproof.json` corresponding to the Go Account. (At this point, it can be verified that inside `AccountInfo` object inside the downloaded file, the `UserId` field corresponds to the wallet address of the Go Account and the Balance list corresponds to the balance of the GoAccount for supported currencies.)
+2) Navigate to the Assets > GoAccount tab and click on the "Download Liability Proofs" button to download the `accountproof.json` corresponding to the Go Account. (At this point, it can be verified that inside `AccountInfo` object inside the downloaded file, the `WalletId` field corresponds to the wallet address of the Go Account and the Balance list corresponds to the balance of the GoAccount for supported currencies.)
 3) Using the binary, run:
 ```bash
 ./bgproof userverify path/to/accountproof.json
@@ -75,7 +75,7 @@ This system uses a multi-layer Merkle Tree architecture combined with zk-SNARK c
 
 ### Key Concepts
 
-- **GoAccount**: Consists of a UserId (walletId) and a Balance list for the wallet.
+- **GoAccount**: Consists of a WalletId (walletId) and a Balance list for the wallet.
 - **GoBalance**: Each element of the Balance list corresponds to the amount of a particular currency the account holds. The currency an element at a particular index correponds to is the currency that is given at that index in the `AssetSymbols` list located in `circuit/constants.go`. This type is also the same type used to represent asset sums at any layer in the merkle tree.
 
 ### 3-Layer Proof Construction

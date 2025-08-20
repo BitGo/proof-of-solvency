@@ -57,7 +57,7 @@ func hashBalance(hasher mimc.MiMC, balances Balance) (hash frontend.Variable) {
 // hashAccount computes the MiMC hash of the account. GoComputeMiMCHashForAccount is the Go equivalent for general use.
 func hashAccount(hasher mimc.MiMC, account Account) (hash frontend.Variable) {
 	hasher.Reset()
-	hasher.Write(account.UserId, hashBalance(hasher, account.Balance))
+	hasher.Write(account.WalletId, hashBalance(hasher, account.Balance))
 	return hasher.Sum()
 }
 
@@ -143,7 +143,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	assertBalancesAreEqual(api, runningBalance, circuit.AssetSum)
 	root := computeMerkleRootFromAccounts(hasher, circuit.Accounts)
 	api.AssertIsEqual(root, circuit.MerkleRoot)
-	rootWithSum := hashAccount(hasher, Account{UserId: circuit.MerkleRoot, Balance: circuit.AssetSum})
+	rootWithSum := hashAccount(hasher, Account{WalletId: circuit.MerkleRoot, Balance: circuit.AssetSum})
 	api.AssertIsEqual(rootWithSum, circuit.MerkleRootWithAssetSumHash)
 
 	return nil

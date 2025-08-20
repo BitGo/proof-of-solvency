@@ -33,11 +33,11 @@ func createTestProofElements() ProofElements {
 	// Create sample accounts
 	accounts := []circuit.GoAccount{
 		{
-			UserId:  []byte{1, 2, 3},
+			WalletId:  []byte{1, 2, 3},
 			Balance: circuit.ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 		},
 		{
-			UserId:  []byte{4, 5, 6},
+			WalletId:  []byte{4, 5, 6},
 			Balance: circuit.ConstructGoBalance(big.NewInt(300), big.NewInt(400)),
 		},
 	}
@@ -61,11 +61,11 @@ func createTestRawProofElements() RawProofElements {
 	// Create sample accounts
 	accounts := []circuit.RawGoAccount{
 		{
-			UserId:  "user1",
+			WalletId:  "user1",
 			Balance: circuit.ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 		},
 		{
-			UserId:  "user2",
+			WalletId:  "user2",
 			Balance: circuit.ConstructGoBalance(big.NewInt(300), big.NewInt(400)),
 		},
 	}
@@ -100,10 +100,10 @@ func TestConvertProofElementsToRawProofElements(t *testing.T) {
 
 	// Verify account conversion by checking a sample
 	// Convert back to bytes for comparison
-	convertedUserId := circuit.ConvertRawGoAccountToGoAccount(result.Accounts[0]).UserId
-	if !bytes.Equal(convertedUserId, original.Accounts[0].UserId) {
-		t.Errorf("UserId not converted correctly. Expected %v, got %v after reconversion",
-			original.Accounts[0].UserId, convertedUserId)
+	convertedWalletId := circuit.ConvertRawGoAccountToGoAccount(result.Accounts[0]).WalletId
+	if !bytes.Equal(convertedWalletId, original.Accounts[0].WalletId) {
+		t.Errorf("WalletId not converted correctly. Expected %v, got %v after reconversion",
+			original.Accounts[0].WalletId, convertedWalletId)
 	}
 
 	// Verify AssetSum is preserved (same pointer)
@@ -144,9 +144,9 @@ func TestConvertRawProofElementsToProofElements(t *testing.T) {
 	// Manually convert raw account to verify
 	expectedAccount := circuit.ConvertRawGoAccountToGoAccount(rawAccount)
 
-	// Compare converted UserIds
-	if !bytes.Equal(convertedAccount.UserId, expectedAccount.UserId) {
-		t.Errorf("UserId not converted correctly")
+	// Compare converted WalletIds
+	if !bytes.Equal(convertedAccount.WalletId, expectedAccount.WalletId) {
+		t.Errorf("WalletId not converted correctly")
 	}
 
 	// Compare balances
@@ -187,8 +187,8 @@ func TestRoundTripProofElementsToRaw(t *testing.T) {
 	for i, originalAccount := range original.Accounts {
 		resultAccount := result.Accounts[i]
 
-		// UserId may be different due to base36 conversion and back, but should be functionally equivalent
-		// Original UserId -> RawUserId (base36) -> UserId could produce different byte representation
+		// WalletId may be different due to base36 conversion and back, but should be functionally equivalent
+		// Original WalletId -> RawWalletId (base36) -> WalletId could produce different byte representation
 		// but with equivalent numerical value
 
 		// Instead, test with account hashing which is what matters functionally
@@ -234,9 +234,9 @@ func TestRoundTripRawToProofElements(t *testing.T) {
 		t.Errorf("Expected %d accounts, got %d", len(original.Accounts), len(result.Accounts))
 	}
 
-	// Verify UserIds - these may have changed format but should be functionally equivalent
-	// Check that each userId in the result can be converted to a byte representation that
-	// when hashed produces the same hash as the original userId
+	// Verify WalletIds - these may have changed format but should be functionally equivalent
+	// Check that each walletId in the result can be converted to a byte representation that
+	// when hashed produces the same hash as the original walletId
 	for i, originalAccount := range original.Accounts {
 		resultAccount := result.Accounts[i]
 
@@ -301,10 +301,10 @@ func TestReadDataFromFile(t *testing.T) {
 			t.Errorf("Expected 2 accounts, got %d", len(result.Accounts))
 		}
 
-		// Verify account conversions - check UserId by converting raw accounts
+		// Verify account conversions - check WalletId by converting raw accounts
 		for i := 0; i < 2; i++ {
-			if !bytes.Equal(result.Accounts[i].UserId, circuit.ConvertRawGoAccountToGoAccount(raw.Accounts[i]).UserId) {
-				t.Errorf("UserId for account %d not converted correctly", i)
+			if !bytes.Equal(result.Accounts[i].WalletId, circuit.ConvertRawGoAccountToGoAccount(raw.Accounts[i]).WalletId) {
+				t.Errorf("WalletId for account %d not converted correctly", i)
 			}
 		}
 
@@ -458,7 +458,7 @@ func TestReadDataFromFile(t *testing.T) {
 		filePath := "testutildata/test_account_0.json"
 		// Create RawGoAccount and write to file directly with writeJson
 		rawAccount := circuit.RawGoAccount{
-			UserId:  "test-account-123",
+			WalletId:  "test-account-123",
 			Balance: circuit.ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 		}
 		err := writeJson(filePath, rawAccount)
@@ -473,10 +473,10 @@ func TestReadDataFromFile(t *testing.T) {
 		// Verify it's properly converted from RawGoAccount
 		expectedAccount := circuit.ConvertRawGoAccountToGoAccount(rawAccount)
 
-		// Verify UserID was properly converted
-		if !bytes.Equal(result.UserId, expectedAccount.UserId) {
-			t.Errorf("UserId not converted correctly: expected %v, got %v",
-				expectedAccount.UserId, result.UserId)
+		// Verify WalletId was properly converted
+		if !bytes.Equal(result.WalletId, expectedAccount.WalletId) {
+			t.Errorf("WalletId not converted correctly: expected %v, got %v",
+				expectedAccount.WalletId, result.WalletId)
 		}
 
 		// Verify balance
@@ -492,7 +492,7 @@ func TestReadDataFromFile(t *testing.T) {
 		// Create raw user verification elements
 		rawUserElements := RawUserVerificationElements{
 			AccountInfo: RawUserAccountInfo{
-				UserId:  "test-user-abc",
+				WalletId:  "test-user-abc",
 				Balance: []string{"500", "700"},
 			},
 			ProofInfo: RawUserProofInfo{
@@ -535,12 +535,12 @@ func TestReadDataFromFile(t *testing.T) {
 
 		// Verify AccountInfo
 		expectedAccount := circuit.ConvertRawGoAccountToGoAccount(circuit.RawGoAccount{
-			UserId:  rawUserElements.AccountInfo.UserId,
+			WalletId:  rawUserElements.AccountInfo.WalletId,
 			Balance: circuit.ConstructGoBalance(big.NewInt(500), big.NewInt(700)),
 		})
-		if !bytes.Equal(result.AccountInfo.UserId, expectedAccount.UserId) {
-			t.Errorf("UserId not converted correctly: expected %v, got %v",
-				expectedAccount.UserId, result.AccountInfo.UserId)
+		if !bytes.Equal(result.AccountInfo.WalletId, expectedAccount.WalletId) {
+			t.Errorf("WalletId not converted correctly: expected %v, got %v",
+				expectedAccount.WalletId, result.AccountInfo.WalletId)
 		}
 		if result.AccountInfo.Balance[0].Cmp(big.NewInt(500)) != 0 ||
 			result.AccountInfo.Balance[1].Cmp(big.NewInt(700)) != 0 {
@@ -713,7 +713,7 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 	t.Run("Round trip GoAccount", func(t *testing.T) {
 		// Create test data
 		rawAccount := circuit.RawGoAccount{
-			UserId:  "test-account-xyz",
+			WalletId:  "test-account-xyz",
 			Balance: circuit.ConstructGoBalance(big.NewInt(123), big.NewInt(456)),
 		}
 		original := circuit.ConvertRawGoAccountToGoAccount(rawAccount)
@@ -726,7 +726,7 @@ func TestWriteReadDataRoundTrip(t *testing.T) {
 		// Read back from file
 		result := ReadDataFromFile[circuit.GoAccount](filePath)
 
-		// Verify account hash matches (since UserId byte representation might differ due to conversion)
+		// Verify account hash matches (since WalletId byte representation might differ due to conversion)
 		originalHash := circuit.GoComputeMiMCHashForAccount(original)
 		resultHash := circuit.GoComputeMiMCHashForAccount(result)
 		if !bytes.Equal(originalHash, resultHash) {
