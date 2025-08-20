@@ -492,8 +492,11 @@ func TestReadDataFromFile(t *testing.T) {
 		// Create raw user verification elements
 		rawUserElements := RawUserVerificationElements{
 			AccountInfo: RawUserAccountInfo{
-				WalletId:  "test-user-abc",
-				Balance: []string{"500", "700"},
+				WalletId: "test-user-abc",
+				Balance: []RawUVBalance{
+					{Asset: "BTC", Amount: "500"},
+					{Asset: "ETH", Amount: "700"},
+				},
 			},
 			ProofInfo: RawUserProofInfo{
 				UserMerklePath:     []Hash{{1, 2, 3}, {4, 5, 6}},
@@ -519,7 +522,10 @@ func TestReadDataFromFile(t *testing.T) {
 					VerificationKey:            "TopVK",
 					MerkleRoot:                 []byte{25, 26, 27},
 					MerkleRootWithAssetSumHash: []byte{28, 29, 30},
-					AssetSum:                   &[]string{"1000", "2000"},
+					AssetSum: &[]RawUVBalance{
+						{Asset: "BTC", Amount: "1000"},
+						{Asset: "ETH", Amount: "2000"},
+					},
 				},
 			},
 		}
