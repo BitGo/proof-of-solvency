@@ -307,7 +307,7 @@ func TestVerifyUser(t *testing.T) {
 		{
 			"Invalid account data",
 			UserVerificationElements{
-				AccountInfo: circuit.GoAccount{UserId: []byte{0x23}},
+				AccountInfo: circuit.GoAccount{WalletId: []byte{0x23}},
 				ProofInfo: UserProofInfo{
 					UserMerklePath:     accountMerklePath,
 					UserMerklePosition: accountPosition,
@@ -322,7 +322,7 @@ func TestVerifyUser(t *testing.T) {
 			"Invalid balance",
 			UserVerificationElements{
 				AccountInfo: circuit.GoAccount{
-					UserId:  account.UserId,
+					WalletId:  account.WalletId,
 					Balance: append(circuit.GoBalance{new(big.Int).Add(new(big.Int).Set(account.Balance[0]), big.NewInt(2))}, account.Balance[1:]...),
 				},
 				ProofInfo: UserProofInfo{
@@ -610,7 +610,7 @@ func TestVerifyFull(t *testing.T) {
 		invalidAccountIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
 		for j := range validAccountBatches[i] {
 			// deep copy each account
-			invalidAccountIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			invalidAccountIncluded[i][j].WalletId = append([]byte{}, validAccountBatches[i][j].WalletId...)
 			// deep copy balance slice
 			invalidAccountIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
 			for k, bal := range validAccountBatches[i][j].Balance {
@@ -618,14 +618,14 @@ func TestVerifyFull(t *testing.T) {
 			}
 		}
 	}
-	invalidAccountIncluded[1][1].UserId = []byte{0x34, 0x28, 0x29}
+	invalidAccountIncluded[1][1].WalletId = []byte{0x34, 0x28, 0x29}
 
 	invalidBalanceIncluded := make([][]circuit.GoAccount, len(validAccountBatches))
 	for i := range validAccountBatches {
 		invalidBalanceIncluded[i] = make([]circuit.GoAccount, len(validAccountBatches[i]))
 		for j := range validAccountBatches[i] {
 			// deep copy each account
-			invalidBalanceIncluded[i][j].UserId = append([]byte{}, validAccountBatches[i][j].UserId...)
+			invalidBalanceIncluded[i][j].WalletId = append([]byte{}, validAccountBatches[i][j].WalletId...)
 			// deep copy balance slice
 			invalidBalanceIncluded[i][j].Balance = make(circuit.GoBalance, len(validAccountBatches[i][j].Balance))
 			for k, bal := range validAccountBatches[i][j].Balance {

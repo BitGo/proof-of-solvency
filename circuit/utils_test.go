@@ -63,8 +63,8 @@ func TestPadToModBytes(t *testing.T) {
 func TestGoComputeMiMCHashesForAccounts(t *testing.T) {
 	assert := test.NewAssert(t)
 	accounts := []GoAccount{
-		{UserId: []byte{1, 2}, Balance: ConstructGoBalance(big.NewInt(1000000000), big.NewInt(11111))},
-		{UserId: []byte{1, 3}, Balance: ConstructGoBalance(big.NewInt(0), big.NewInt(22222))},
+		{WalletId: []byte{1, 2}, Balance: ConstructGoBalance(big.NewInt(1000000000), big.NewInt(11111))},
+		{WalletId: []byte{1, 3}, Balance: ConstructGoBalance(big.NewInt(0), big.NewInt(22222))},
 	}
 
 	expectedHashes := []Hash{
@@ -198,7 +198,7 @@ func TestPublicComputeMerkleRootMaxAccountsConstraint(t *testing.T) {
 	accounts := make([]GoAccount, ACCOUNTS_PER_BATCH+1)
 	for i := range accounts {
 		accounts[i] = GoAccount{
-			UserId:  []byte{byte(i % 256)},
+			WalletId:  []byte{byte(i % 256)},
 			Balance: ConstructGoBalance(big.NewInt(1), big.NewInt(1)),
 		}
 	}
@@ -434,11 +434,11 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "All positive balances",
 			accounts: []GoAccount{
 				{
-					UserId:  []byte("user1"),
+					WalletId:  []byte("user1"),
 					Balance: ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 				},
 				{
-					UserId:  []byte("user2"),
+					WalletId:  []byte("user2"),
 					Balance: ConstructGoBalance(big.NewInt(150), big.NewInt(250)),
 				},
 			},
@@ -449,7 +449,7 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "With negative balance for first asset",
 			accounts: []GoAccount{
 				{
-					UserId:  []byte("user1"),
+					WalletId:  []byte("user1"),
 					Balance: ConstructGoBalance(big.NewInt(-250), big.NewInt(450)),
 				},
 			},
@@ -460,7 +460,7 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "With negative balance for second asset",
 			accounts: []GoAccount{
 				{
-					UserId:  []byte("user1"),
+					WalletId:  []byte("user1"),
 					Balance: ConstructGoBalance(big.NewInt(250), big.NewInt(-450)),
 				},
 			},
@@ -471,7 +471,7 @@ func TestSumGoAccountBalances(t *testing.T) {
 			name: "Zero balances",
 			accounts: []GoAccount{
 				{
-					UserId:  []byte("user1"),
+					WalletId:  []byte("user1"),
 					Balance: ConstructGoBalance(),
 				},
 			},
@@ -573,24 +573,24 @@ func TestGoBalanceEquals(t *testing.T) {
 	}
 }
 
-func TestConvertRawUserIdToBytes(t *testing.T) {
+func TestConvertRawWalletIdToBytes(t *testing.T) {
 	t.Run("basic alphanumeric conversion", func(t *testing.T) {
-		userId := "user123"
-		result := convertRawUserIdToBytes(userId)
+		walletId := "user123"
+		result := convertRawWalletIdToBytes(walletId)
 
 		// Convert back to string to verify
 		n := new(big.Int).SetBytes(result)
 		resultBase36 := n.Text(36)
 
-		if resultBase36 != userId {
-			t.Errorf("Expected %s, got %s", userId, resultBase36)
+		if resultBase36 != walletId {
+			t.Errorf("Expected %s, got %s", walletId, resultBase36)
 		}
 	})
 
-	t.Run("hyphenated userId", func(t *testing.T) {
-		userId := "user-123-456"
+	t.Run("hyphenated walletId", func(t *testing.T) {
+		walletId := "user-123-456"
 		expectedCleanId := "user123456" // hyphens removed
-		result := convertRawUserIdToBytes(userId)
+		result := convertRawWalletIdToBytes(walletId)
 
 		// Convert back to string to verify
 		n := new(big.Int).SetBytes(result)
@@ -602,29 +602,29 @@ func TestConvertRawUserIdToBytes(t *testing.T) {
 	})
 
 	t.Run("invalid characters", func(t *testing.T) {
-		userId := "user@123"
+		walletId := "user@123"
 		defer func() {
 			if r := recover(); r == nil {
 				t.Errorf("Expected panic with invalid characters")
 			}
 		}()
-		convertRawUserIdToBytes(userId)
+		convertRawWalletIdToBytes(walletId)
 	})
 }
 
 func TestConvertRawGoAccountToGoAccount(t *testing.T) {
-	t.Run("standard conversion with alphanumeric and hyphenated userId", func(t *testing.T) {
+	t.Run("standard conversion with alphanumeric and hyphenated walletId", func(t *testing.T) {
 		rawAccount := RawGoAccount{
-			UserId:  "user-123-abc",
+			WalletId:  "user-123-abc",
 			Balance: ConstructGoBalance(big.NewInt(1000), big.NewInt(2000)),
 		}
 
 		result := ConvertRawGoAccountToGoAccount(rawAccount)
 
-		// Verify userId is converted correctly
-		expectedUserId := convertRawUserIdToBytes("user-123-abc")
-		if !bytes.Equal(expectedUserId, result.UserId) {
-			t.Errorf("UserId not converted correctly")
+		// Verify walletId is converted correctly
+		expectedWalletId := convertRawWalletIdToBytes("user-123-abc")
+		if !bytes.Equal(expectedWalletId, result.WalletId) {
+			t.Errorf("WalletId not converted correctly")
 		}
 
 		// Verify balance remains unchanged
@@ -637,18 +637,18 @@ func TestConvertRawGoAccountToGoAccount(t *testing.T) {
 func TestConvertGoAccountToRawGoAccount(t *testing.T) {
 	t.Run("standard conversion", func(t *testing.T) {
 		// Create a GoAccount
-		userId := convertRawUserIdToBytes("user123")
+		walletId := convertRawWalletIdToBytes("user123")
 		goAccount := GoAccount{
-			UserId:  userId,
+			WalletId:  walletId,
 			Balance: ConstructGoBalance(big.NewInt(1000), big.NewInt(2000)),
 		}
 
 		// Convert to RawGoAccount
 		result := ConvertGoAccountToRawGoAccount(goAccount)
 
-		// Verify userId is in base36 format
-		if result.UserId != "user123" {
-			t.Errorf("Expected userId user123, got %s", result.UserId)
+		// Verify walletId is in base36 format
+		if result.WalletId != "user123" {
+			t.Errorf("Expected walletId user123, got %s", result.WalletId)
 		}
 
 		// Verify balance remains unchanged
@@ -659,9 +659,9 @@ func TestConvertGoAccountToRawGoAccount(t *testing.T) {
 
 	t.Run("round trip conversion", func(t *testing.T) {
 		// Start with a GoAccount
-		originalUserId := convertRawUserIdToBytes("test456abc")
+		originalWalletId := convertRawWalletIdToBytes("test456abc")
 		originalAccount := GoAccount{
-			UserId:  originalUserId,
+			WalletId:  originalWalletId,
 			Balance: ConstructGoBalance(big.NewInt(500), big.NewInt(600)),
 		}
 
@@ -670,8 +670,8 @@ func TestConvertGoAccountToRawGoAccount(t *testing.T) {
 		reconvertedAccount := ConvertRawGoAccountToGoAccount(rawAccount)
 
 		// Verify the round trip preserves the data
-		if !bytes.Equal(originalAccount.UserId, reconvertedAccount.UserId) {
-			t.Errorf("UserId should be preserved in round trip")
+		if !bytes.Equal(originalAccount.WalletId, reconvertedAccount.WalletId) {
+			t.Errorf("WalletId should be preserved in round trip")
 		}
 		if !originalAccount.Balance.Equals(reconvertedAccount.Balance) {
 			t.Errorf("Balance should be preserved in round trip")
@@ -684,11 +684,11 @@ func TestBatchConversionFunctions(t *testing.T) {
 		// Create a batch of raw accounts
 		rawAccounts := []RawGoAccount{
 			{
-				UserId:  "user1",
+				WalletId:  "user1",
 				Balance: ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 			},
 			{
-				UserId:  "user-2",
+				WalletId:  "user-2",
 				Balance: ConstructGoBalance(big.NewInt(300), big.NewInt(400)),
 			},
 		}
@@ -702,18 +702,18 @@ func TestBatchConversionFunctions(t *testing.T) {
 		}
 
 		// Check first account
-		expectedUserId1 := convertRawUserIdToBytes("user1")
-		if !bytes.Equal(expectedUserId1, result[0].UserId) {
-			t.Errorf("First account UserId not converted correctly")
+		expectedWalletId1 := convertRawWalletIdToBytes("user1")
+		if !bytes.Equal(expectedWalletId1, result[0].WalletId) {
+			t.Errorf("First account WalletId not converted correctly")
 		}
 		if !result[0].Balance.Equals(rawAccounts[0].Balance) {
 			t.Errorf("First account Balance should remain unchanged")
 		}
 
 		// Check second account
-		expectedUserId2 := convertRawUserIdToBytes("user-2")
-		if !bytes.Equal(expectedUserId2, result[1].UserId) {
-			t.Errorf("Second account UserId not converted correctly")
+		expectedWalletId2 := convertRawWalletIdToBytes("user-2")
+		if !bytes.Equal(expectedWalletId2, result[1].WalletId) {
+			t.Errorf("Second account WalletId not converted correctly")
 		}
 		if !result[1].Balance.Equals(rawAccounts[1].Balance) {
 			t.Errorf("Second account Balance should remain unchanged")
@@ -724,11 +724,11 @@ func TestBatchConversionFunctions(t *testing.T) {
 		// Create a batch of go accounts
 		accounts := []GoAccount{
 			{
-				UserId:  convertRawUserIdToBytes("user1"),
+				WalletId:  convertRawWalletIdToBytes("user1"),
 				Balance: ConstructGoBalance(big.NewInt(100), big.NewInt(200)),
 			},
 			{
-				UserId:  convertRawUserIdToBytes("user2"),
+				WalletId:  convertRawWalletIdToBytes("user2"),
 				Balance: ConstructGoBalance(big.NewInt(300), big.NewInt(400)),
 			},
 		}
@@ -742,16 +742,16 @@ func TestBatchConversionFunctions(t *testing.T) {
 		}
 
 		// Check first account
-		if result[0].UserId != "user1" {
-			t.Errorf("Expected user1, got %s", result[0].UserId)
+		if result[0].WalletId != "user1" {
+			t.Errorf("Expected user1, got %s", result[0].WalletId)
 		}
 		if !result[0].Balance.Equals(accounts[0].Balance) {
 			t.Errorf("First account Balance should remain unchanged")
 		}
 
 		// Check second account
-		if result[1].UserId != "user2" {
-			t.Errorf("Expected user2, got %s", result[1].UserId)
+		if result[1].WalletId != "user2" {
+			t.Errorf("Expected user2, got %s", result[1].WalletId)
 		}
 		if !result[1].Balance.Equals(accounts[1].Balance) {
 			t.Errorf("Second account Balance should remain unchanged")

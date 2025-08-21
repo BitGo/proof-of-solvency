@@ -58,11 +58,11 @@ func GoComputeMiMCHashForAccount(account GoAccount) Hash {
 	}
 	balanceHash := hasher.Sum(nil)
 
-	// add userId to hasher
+	// add walletId to hasher
 	hasher.Reset()
-	_, err = hasher.Write(account.UserId)
+	_, err = hasher.Write(account.WalletId)
 	if err != nil {
-		panic("Error writing UserId to hasher: " + err.Error())
+		panic("Error writing WalletId to hasher: " + err.Error())
 	}
 
 	// add balanceHash to hasher and return full hash
@@ -240,7 +240,7 @@ func ConvertGoBalanceToBalance(goBalance GoBalance) Balance {
 // ConvertGoAccountToAccount converts a GoAccount to an Account immediately before inclusion in the circuit.
 func convertGoAccountToAccount(goAccount GoAccount) Account {
 	return Account{
-		UserId:  new(big.Int).SetBytes(goAccount.UserId),
+		WalletId:  new(big.Int).SetBytes(goAccount.WalletId),
 		Balance: ConvertGoBalanceToBalance(goAccount.Balance),
 	}
 }
@@ -253,19 +253,19 @@ func ConvertGoAccountsToAccounts(goAccounts []GoAccount) (accounts []Account) {
 	return accounts
 }
 
-// Convert raw UserID string to a []byte by removing any hyphens, interpreting it as
+// Convert raw WalletId string to a []byte by removing any hyphens, interpreting it as
 // a base36 number, and then converting that number to a []byte. If this is used to
-// get the GoAccount.UserId, the userId should not exceed BN254 curve limit as long
+// get the GoAccount.WalletId, the walletId should not exceed BN254 curve limit as long
 // as the string is less than 49 characters in length.
-func convertRawUserIdToBytes(userId string) []byte {
+func convertRawWalletIdToBytes(walletId string) []byte {
 	// remove any hyphens from user id
-	cleanedUserId := strings.ReplaceAll(userId, "-", "")
+	cleanedWalletId := strings.ReplaceAll(walletId, "-", "")
 
 	// convert to bytes (interpreted as a base36 string)
 	n := new(big.Int)
-	_, ok := n.SetString(cleanedUserId, 36)
+	_, ok := n.SetString(cleanedWalletId, 36)
 	if !ok {
-		panic("failed to convert userId to big.Int from base36: " + cleanedUserId)
+		panic("failed to convert walletId to big.Int from base36: " + cleanedWalletId)
 	}
 	return n.Bytes()
 }
@@ -273,7 +273,7 @@ func convertRawUserIdToBytes(userId string) []byte {
 // Converts a RawGoAccount (read from json file) to a GoAccount
 func ConvertRawGoAccountToGoAccount(rawAccount RawGoAccount) GoAccount {
 	return GoAccount{
-		UserId:  convertRawUserIdToBytes(rawAccount.UserId),
+		WalletId:  convertRawWalletIdToBytes(rawAccount.WalletId),
 		Balance: rawAccount.Balance,
 	}
 }
@@ -281,7 +281,7 @@ func ConvertRawGoAccountToGoAccount(rawAccount RawGoAccount) GoAccount {
 // Converts a GoAccount to a RawGoAccount properly (for writing to json file)
 func ConvertGoAccountToRawGoAccount(goAccount GoAccount) RawGoAccount {
 	return RawGoAccount{
-		UserId:  new(big.Int).SetBytes(goAccount.UserId).Text(36),
+		WalletId:  new(big.Int).SetBytes(goAccount.WalletId).Text(36),
 		Balance: goAccount.Balance,
 	}
 }
@@ -343,7 +343,7 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 
 	for i := 0; i < count; i++ {
 		// generate random user ID
-		userId := convertRawUserIdToBytes(fmt.Sprintf("user%d", rng.Int31()))
+		walletId := convertRawWalletIdToBytes(fmt.Sprintf("user%d", rng.Int31()))
 
 		// generate random balances between 0 and 10,500
 		balances := make(GoBalance, GetNumberOfAssets())
@@ -351,12 +351,12 @@ func GenerateTestData(count int, seed int) (accounts []GoAccount, assetSum GoBal
 			balances[i] = big.NewInt(rng.Int63n(10500))
 		}
 
-		accounts = append(accounts, GoAccount{UserId: userId, Balance: balances})
+		accounts = append(accounts, GoAccount{WalletId: walletId, Balance: balances})
 	}
 
 	goAccountBalanceSum := SumGoAccountBalances(accounts)
 	merkleRoot = GoComputeMerkleRootFromAccounts(accounts)
-	merkleRootWithAssetSumHash = GoComputeMiMCHashForAccount(GoAccount{UserId: merkleRoot, Balance: goAccountBalanceSum})
+	merkleRootWithAssetSumHash = GoComputeMiMCHashForAccount(GoAccount{WalletId: merkleRoot, Balance: goAccountBalanceSum})
 	return accounts, goAccountBalanceSum, merkleRoot, merkleRootWithAssetSumHash
 }
 

@@ -31,7 +31,7 @@ func generateProof(elements ProofElements) CompletedProof {
 		elements.MerkleRoot = circuit.GoComputeMerkleRootFromAccounts(elements.Accounts)
 	}
 	if elements.MerkleRootWithAssetSumHash == nil {
-		elements.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: elements.MerkleRoot, Balance: *elements.AssetSum})
+		elements.MerkleRootWithAssetSumHash = circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{WalletId: elements.MerkleRoot, Balance: *elements.AssetSum})
 	}
 
 	// check if compiled proof cached already for this length of accounts
@@ -131,7 +131,7 @@ func writeProofsToFiles(proofs []CompletedProof, prefix string, saveAssetSum boo
 }
 
 // generateNextLevelProofs generates the next level proofs by calling generateProof and treating the lower level
-// proofs as accounts, with MerkleRoot as UserId and AssetSum as Balance.
+// proofs as accounts, with MerkleRoot as WalletId and AssetSum as Balance.
 func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof {
 
 	// properly make accounts for next level proof using currentLevelProofs
@@ -141,7 +141,7 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 			panic("AssetSum is nil")
 		}
 		// convert lower level proof to GoAccount struct
-		nextLevelProofAccounts[i] = circuit.GoAccount{UserId: currentLevelProof[i].MerkleRoot, Balance: *currentLevelProof[i].AssetSum}
+		nextLevelProofAccounts[i] = circuit.GoAccount{WalletId: currentLevelProof[i].MerkleRoot, Balance: *currentLevelProof[i].AssetSum}
 		if !bytes.Equal(currentLevelProof[i].MerkleRootWithAssetSumHash, circuit.GoComputeMiMCHashForAccount(nextLevelProofAccounts[i])) {
 			panic("Merkle root with asset sum hash does not match")
 		}
@@ -154,7 +154,7 @@ func generateNextLevelProofs(currentLevelProof []CompletedProof) CompletedProof 
 		Accounts:                   nextLevelProofAccounts,
 		MerkleRoot:                 merkleRoot,
 		AssetSum:                   &assetSum,
-		MerkleRootWithAssetSumHash: circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{UserId: merkleRoot, Balance: assetSum}),
+		MerkleRootWithAssetSumHash: circuit.GoComputeMiMCHashForAccount(circuit.GoAccount{WalletId: merkleRoot, Balance: assetSum}),
 	})
 }
 

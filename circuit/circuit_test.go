@@ -63,7 +63,7 @@ func TestCircuitDoesNotAcceptAccountsWithOverflow(t *testing.T) {
 
 	// create account with overflow balance, based on first generated go account
 	badBalanceAccount := GoAccount{
-		UserId:  GO_ACCOUNTS[0].UserId,
+		WalletId:  GO_ACCOUNTS[0].WalletId,
 		Balance: append(GO_ACCOUNTS[0].Balance[1:], new(big.Int).SetBytes(overflowBalance)),
 	}
 

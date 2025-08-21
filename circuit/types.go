@@ -11,7 +11,7 @@ type Balance []frontend.Variable
 
 // Account is an input to the circuit and is only used in this package. GoAccount is preferred elsewhere.
 type Account struct {
-	UserId  frontend.Variable
+	WalletId  frontend.Variable
 	Balance Balance
 }
 
@@ -33,13 +33,13 @@ type GoBalance []*big.Int
 // GoAccount represents an account. It can be converted to Account for use in the circuit
 // through ConvertGoAccountToAccount.
 type GoAccount struct {
-	UserId  []byte
+	WalletId  []byte
 	Balance GoBalance
 }
 
-// RawGoAccount represents an account read from file (with a string UserId). It can be converted to
+// RawGoAccount represents an account read from file (with a string WalletId). It can be converted to
 // GoAccount (to manipulate here) through ConvertRawGoAccountToAccount.
 type RawGoAccount struct {
-	UserId  string
+	WalletId  string
 	Balance GoBalance
 }
