@@ -17,7 +17,7 @@ const (
 var ModBytes = len(ecc.BN254.ScalarField().Bytes())
 
 // AssetSymbols is an array storing symbols for cryptocurrencies (i.e. mapping indices to cryptocurrencies)
-var AssetSymbols = []string{"ALGO", "ARBETH", "AVAXC", "AVAXP", "BTC", "BCH", "ADA", "CSPR", "TIA",
-	"COREUM", "ATOM", "DASH", "DOGE", "EOS", "ETH", "ETC", "HBAR", "LTC", "NEAR",
+var AssetSymbols = []string{"ALGO", "ARBETH", "AVAXC", "BTC", "BCH", "ADA", "CSPR", "TIA",
+	"ATOM", "DASH", "DOGE", "EOS", "ETH", "ETC", "HBAR", "LTC", "NEAR",
 	"OSMO", "DOT", "POLYGON", "SEI", "SOL", "STX", "XLM", "SUI", "TRX", "XRP",
-	"ZEC", "ZETA", "BLD", "BSC", "TON", "COREDAO", "BERA", "TAO", "APT", "XDC", "WEMIX"}
+	"ZEC", "ZETA", "BLD", "BSC", "TON", "COREDAO", "BERA", "TAO", "APT"}
