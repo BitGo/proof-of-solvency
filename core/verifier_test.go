@@ -22,8 +22,8 @@ var testData0, testData1, altTestData0 ProofElements
 // for all tests to use.
 func TestMain(m *testing.M) {
 	// clean up out and alt directory before running tests
-	os.RemoveAll("out")
-	os.RemoveAll("alt")
+	_ = os.RemoveAll("out")
+	_ = os.RemoveAll("alt")
 
 	// create out and alt directory structure
 	panicOnError(os.MkdirAll("out/secret", 0755), "failed to create out/secret directory")
