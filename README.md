@@ -4,7 +4,7 @@
 
 This repository is part of BitGo's proof of solvency implementation for Go Accounts, enabling clients to verify that their assets are fully backed. The repository contains code for generating liability proofs and verifying them through a multi-level merkle tree structure with zero-knowledge proofs.
 
-[Note: BitGo website UI updates to view total liabilites and download liability proofs for Go Accounts are still underway.]
+[Note: BitGo website UI updates to view total liabilities and download liability proofs for Go Accounts are still underway.]
 
 ## Usage
 
@@ -51,7 +51,7 @@ This generates proofs for accounts in the files `batch_0.json...batch_n.json` in
 
 This command is used for complete verification of generated proofs. It assumes generated proofs are in `out/public` and the accounts batches used as input are in `out/secret`. It verifies:
 1) Each bottom-layer, mid-layer, and top-layer proof in `out/public` can be verified by the circuit.
-2) Each bottom-layer proof was included in an mid-layer proof and each mid-layer proof was included in the top-layer proof.
+2) Each bottom-layer proof was included in a mid-layer proof and each mid-layer proof was included in the top-layer proof.
 3) Each account in `out/secret` was included in a bottom-layer proof.
 4) Each bottom proof has a valid set of merkle nodes (which can be later used to compute merkle paths for accounts).
 This can be useful for checking that the proofs were correctly generated. Please note that filenames are fixed,
@@ -76,7 +76,7 @@ This system uses a multi-layer Merkle Tree architecture combined with zk-SNARK c
 ### Key Concepts
 
 - **GoAccount**: Consists of a WalletId (walletId) and a Balance list for the wallet.
-- **GoBalance**: Each element of the Balance list corresponds to the amount of a particular currency the account holds. The currency an element at a particular index correponds to is the currency that is given at that index in the `AssetSymbols` list located in `circuit/constants.go`. This type is also the same type used to represent asset sums at any layer in the merkle tree.
+- **GoBalance**: Each element of the Balance list corresponds to the amount of a particular currency the account holds. The currency an element at a particular index corresponds to is the currency that is given at that index in the `AssetSymbols` list located in `circuit/constants.go`. This type is also the same type used to represent asset sums at any layer in the merkle tree.
 
 ### 3-Layer Proof Construction
 

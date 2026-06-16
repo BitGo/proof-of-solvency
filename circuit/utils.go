@@ -315,7 +315,7 @@ func ConstructGoBalance(initialBalances ...*big.Int) GoBalance {
 	return balances
 }
 
-// SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative functions.
+// SumGoAccountBalances sums the balances of a list of GoAccounts and panics on negative balances.
 // This panic is because any circuit that is passed negative balances will violate constraints.
 func SumGoAccountBalances(accounts []GoAccount) GoBalance {
 	assetSum := ConstructGoBalance()

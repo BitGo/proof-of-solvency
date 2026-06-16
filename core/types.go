@@ -25,7 +25,7 @@ type ProofElements struct {
 	MerkleRootWithAssetSumHash []byte
 }
 
-// RawProofElements is contains all the same items as ProofElements, except the accounts are RawGoAccounts
+// RawProofElements contains all the same items as ProofElements, except the accounts are RawGoAccounts
 // should be used when writing to a json file or reading directly from a json file.
 type RawProofElements struct {
 	Accounts                   []circuit.RawGoAccount
